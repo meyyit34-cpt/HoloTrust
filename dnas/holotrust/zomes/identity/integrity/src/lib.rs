@@ -22,14 +22,12 @@ pub struct AgentProfile {
 #[hdk_entry_types]
 #[unit_enum(UnitEntryTypes)]
 pub enum EntryTypes {
-    AgentProfile(AgentProfile),
-}
-/// Validate the application-level constraints of a profile.
+    AgentProfile(pub fn validate_profile(profile: &AgentProfile) -> Result<(), String> {
+    if profile.schema_version != 1 {
+        return Err("Unsupported profile schema version".to_string());/// Validate the application-level constraints of a profile.
 ///
 /// Character limits count Unicode scalar values, not UTF-8 bytes.
-pub fn validate_profile(profile: &AgentProfile) -> Result<(), String> {
-    if profile.schema_version != 1 {
-        return Err("Unsupported profile schema version".to_string());
+
     }
     let display_name = profile.display_name.trim();
     if display_name.is_empty() {
