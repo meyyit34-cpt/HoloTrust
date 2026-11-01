@@ -2,6 +2,7 @@
 resolver = "2"
 members = [
     "dnas/holotrust/zomes/identity/integrity",
+    "dnas/holotrust/zomes/identity/coordinator",
 ]
 
 [workspace.package]
