@@ -13,4 +13,5 @@ license = "MIT"
 [workspace.dependencies]
 hdi = "=0.8.1"
 hdk = "=0.7.1"
+holochain_serialized_bytes = "=0.0.57"
 serde = "1.0"
