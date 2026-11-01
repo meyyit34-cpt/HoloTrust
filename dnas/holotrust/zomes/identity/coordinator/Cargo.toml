@@ -9,3 +9,4 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 hdk = { workspace = true }
+identity_integrity = { path = "../integrity" }
