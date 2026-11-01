@@ -67,3 +67,77 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
         _ => Ok(ValidateCallbackResult::Valid),
     }
 }
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn valid_profile() -> AgentProfile {
+        AgentProfile {
+            schema_version: 1,
+            display_name: "HoloTrust User".to_string(),
+            agent_type: AgentType::Human,
+            description: Some("A test profile".to_string()),
+        }
+    }
+
+    #[test]
+    fn accepts_valid_profile() {
+        assert!(validate_profile(&valid_profile()).is_ok());
+    }
+
+    #[test]
+    fn rejects_empty_display_name() {
+        let mut profile = valid_profile();
+        profile.display_name = "   ".to_string();
+
+        assert!(validate_profile(&profile).is_err());
+    }
+
+    #[test]
+    fn rejects_display_name_longer_than_64_characters() {
+        let mut profile = valid_profile();
+        profile.display_name = "a".repeat(65);
+
+        assert!(validate_profile(&profile).is_err());
+    }
+
+    #[test]
+    fn accepts_display_name_of_64_characters() {
+        let mut profile = valid_profile();
+        profile.display_name = "a".repeat(64);
+
+        assert!(validate_profile(&profile).is_ok());
+    }
+
+    #[test]
+    fn rejects_control_characters_in_display_name() {
+        let mut profile = valid_profile();
+        profile.display_name = "Holo\nTrust".to_string();
+
+        assert!(validate_profile(&profile).is_err());
+    }
+
+    #[test]
+    fn rejects_description_longer_than_280_characters() {
+        let mut profile = valid_profile();
+        profile.description = Some("a".repeat(281));
+
+        assert!(validate_profile(&profile).is_err());
+    }
+
+    #[test]
+    fn rejects_unsupported_schema_version() {
+        let mut profile = valid_profile();
+        profile.schema_version = 2;
+
+        assert!(validate_profile(&profile).is_err());
+    }
+
+    #[test]
+    fn accepts_profile_without_description() {
+        let mut profile = valid_profile();
+        profile.description = None;
+
+        assert!(validate_profile(&profile).is_ok());
+    }
+}
