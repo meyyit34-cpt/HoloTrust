@@ -21,7 +21,10 @@ pub struct UpdateProfileInput {
     pub description: Option<String>,
 }
 
-let profile = profile_from_input(input.display_name, input.agent_type, input.description);
+fn profile_from_input(
+    display_name: String,
+    agent_type: AgentType,
+    description: Option<String>,
 ) -> AgentProfile {
     AgentProfile {
         schema_version: 1,
@@ -39,11 +42,7 @@ fn index_profile(action_hash: ActionHash) -> ExternResult<()> {
 
 #[hdk_extern]
 pub fn create_profile(input: CreateProfileInput) -> ExternResult<ActionHash> {
-    let profile = profile_from_input(
-        input.display_name,
-        input.agent_type,
-        input.description,
-    );
+    let profile = profile_from_input(input.display_name, input.agent_type, input.description);
     let action_hash = create_entry(EntryTypes::AgentProfile(profile))?;
     index_profile(action_hash.clone())?;
     Ok(action_hash)
@@ -75,11 +74,7 @@ pub fn get_profile(input: GetProfileInput) -> ExternResult<Option<Record>> {
 
 #[hdk_extern]
 pub fn update_profile(input: UpdateProfileInput) -> ExternResult<ActionHash> {
-    let profile = profile_from_input(
-        input.display_name,
-        input.agent_type,
-        input.description,
-    );
+    let profile = profile_from_input(input.display_name, input.agent_type, input.description);
     let updated_hash = update_entry(input.action_hash, &EntryTypes::AgentProfile(profile))?;
 
     let agent = agent_info()?.agent_initial_pubkey;
