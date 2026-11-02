@@ -1,4 +1,3 @@
-
 use hdi::prelude::*;
 use serde::{Deserialize, Serialize};
 
@@ -78,7 +77,8 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
                 Ok(ValidateCallbackResult::Valid)
             } else {
                 Ok(ValidateCallbackResult::Invalid(
-                    "Profile links must be created by their owning agent and target an action".into()
+                    "Profile links must be created by their owning agent and target an action"
+                        .into(),
                 ))
             }
         }
