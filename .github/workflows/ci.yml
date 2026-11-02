@@ -26,6 +26,9 @@ jobs:
       - name: Run workspace tests
         run: cargo test --workspace
 
+      - name: Inspect WASM randomness dependency
+        run: cargo tree --target wasm32-unknown-unknown -i getrandom@0.3.4
+
       - name: Build zomes for WASM
         run: cargo build --workspace --release --target wasm32-unknown-unknown
 
