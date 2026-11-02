@@ -1,3 +1,4 @@
+
 name: HoloTrust CI
 
 on:
@@ -8,7 +9,7 @@ on:
 
 jobs:
   test:
-    name: Format and test
+    name: Format, test and WASM build
     runs-on: ubuntu-latest
 
     steps:
@@ -19,9 +20,18 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt
+          targets: wasm32-unknown-unknown
 
       - name: Check formatting
         run: cargo fmt --all -- --check
 
       - name: Run workspace tests
         run: cargo test --workspace
+
+      - name: Build zomes for WASM
+        run: cargo build --workspace --release --target wasm32-unknown-unknown
+
+      - name: Verify WASM artifacts
+        run: |
+          test -f target/wasm32-unknown-unknown/release/identity_integrity.wasm
+          test -f target/wasm32-unknown-unknown/release/identity_coordinator.wasm
