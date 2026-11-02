@@ -1,3 +1,4 @@
+
 import {
   connectHolochain,
   callIdentity
@@ -8,8 +9,9 @@ import {
   decodeHashFromBase64
 } from "https://esm.sh/@holochain/client@0.21.0";
 
-const $ = id => document.getElementById(id);
+import { decode } from "https://esm.sh/@msgpack/msgpack@3.1.2";
 
+const $ = id => document.getElementById(id);
 const form = $("profileForm");
 const status = document.querySelector(".status");
 
@@ -65,15 +67,34 @@ function showProfile(profile) {
 
   $("emptyState").hidden = true;
   $("profileCard").hidden = false;
-
   $("cardName").textContent = profile.displayName;
   $("cardType").textContent = type.label;
   $("avatar").textContent = type.icon;
   $("cardDescription").textContent =
     profile.description || "Henüz açıklama eklenmedi.";
-
   $("profileId").textContent = profile.localId;
   $("saveButton").textContent = "Profili güncelle";
+}
+
+function normalizeProfile(entry, actionHash) {
+  const displayName = entry.display_name;
+  const agentType = entry.agent_type;
+
+  if (
+    typeof displayName !== "string" ||
+    !["Human", "AI", "Service"].includes(agentType)
+  ) {
+    throw new Error("DHT profil verisi beklenen şemayla uyuşmuyor.");
+  }
+
+  return {
+    schemaVersion: entry.schema_version ?? 1,
+    displayName,
+    agentType,
+    description: entry.description || "",
+    localId: encodeHashToBase64(actionHash),
+    updatedAt: new Date().toISOString()
+  };
 }
 
 connectButton.addEventListener("click", async () => {
@@ -85,29 +106,21 @@ connectButton.addEventListener("click", async () => {
 
   try {
     const connection = await connectHolochain();
-
     connected = true;
 
-    const agentKey = encodeHashToBase64(
-      connection.agentPubKey
-    );
+    const agentKey = encodeHashToBase64(connection.agentPubKey);
 
     setStatus("Bağlandı · " + agentKey.slice(0, 12), true);
-
     connectButton.textContent = "Bağlantı aktif";
     readButton.disabled = false;
 
     notify("Holochain bağlantısı kuruldu.");
-
   } catch (error) {
     connected = false;
-
     setStatus("Bağlantı kurulamadı");
     connectButton.disabled = false;
     connectButton.textContent = "Tekrar dene";
-
     notify(error.message || "Bağlantı hatası.");
-
   } finally {
     busy = false;
   }
@@ -128,29 +141,41 @@ readButton.addEventListener("click", async () => {
       return;
     }
 
-    const hash = record.signed_action?.hashed?.hash;
+    const present = record.entry?.Present;
+    const entryBytes = present?.entry ?? present;
 
-    if (hash) {
-      const encodedHash = encodeHashToBase64(hash);
-      localStorage.setItem(hashKey, encodedHash);
-
-      const saved = localStorage.getItem(storageKey);
-
-      if (saved) {
-        const profile = JSON.parse(saved);
-        profile.localId = encodedHash;
-        localStorage.setItem(storageKey, JSON.stringify(profile));
-        showProfile(profile);
-      }
+    if (!entryBytes) {
+      throw new Error("Profil verisi erişilebilir değil.");
     }
 
-    setStatus("DHT profil kaydı bulundu", true);
-    notify("Profil kaydı Holochain DHT üzerinden bulundu.");
+    const entry = decode(entryBytes);
+    const actionHash = record.signed_action?.hashed?.hash;
 
+    if (!actionHash) {
+      throw new Error("ActionHash bulunamadı.");
+    }
+
+    const profile = normalizeProfile(entry, actionHash);
+
+    localStorage.setItem(hashKey, profile.localId);
+    localStorage.setItem(storageKey, JSON.stringify(profile));
+
+    $("displayName").value = profile.displayName;
+    $("description").value = profile.description;
+
+    document.querySelectorAll(".type").forEach(button => {
+      button.classList.toggle(
+        "active",
+        button.dataset.type === profile.agentType
+      );
+    });
+
+    showProfile(profile);
+    setStatus("Profil DHT'den yüklendi", true);
+    notify("Profil Holochain kaydından okundu.");
   } catch (error) {
-    console.error("DHT read error:", error);
+    console.error("HoloTrust DHT read:", error);
     notify("Profil okunamadı: " + (error.message || "Bilinmeyen hata"));
-
   } finally {
     busy = false;
     readButton.disabled = !connected;
@@ -187,45 +212,36 @@ form.addEventListener("submit", async event => {
   try {
     const existingHash = localStorage.getItem(hashKey);
 
-    let actionHash;
-
-    if (existingHash) {
-      actionHash = await callIdentity("update_profile", {
-        action_hash: decodeHashFromBase64(existingHash),
-        display_name: displayName,
-        agent_type: agentType,
-        description: description || null
-      });
-    } else {
-      actionHash = await callIdentity("create_profile", {
-        display_name: displayName,
-        agent_type: agentType,
-        description: description || null
-      });
-    }
-
-    const encodedHash = encodeHashToBase64(actionHash);
+    const actionHash = existingHash
+      ? await callIdentity("update_profile", {
+          action_hash: decodeHashFromBase64(existingHash),
+          display_name: displayName,
+          agent_type: agentType,
+          description: description || null
+        })
+      : await callIdentity("create_profile", {
+          display_name: displayName,
+          agent_type: agentType,
+          description: description || null
+        });
 
     const profile = {
       schemaVersion: 1,
       displayName,
       agentType,
       description,
-      localId: encodedHash,
+      localId: encodeHashToBase64(actionHash),
       updatedAt: new Date().toISOString()
     };
 
-    localStorage.setItem(hashKey, encodedHash);
+    localStorage.setItem(hashKey, profile.localId);
     localStorage.setItem(storageKey, JSON.stringify(profile));
 
     showProfile(profile);
-
-    notify("Profil Holochain'a gönderildi.");
-
+    notify("Profil kaydı Holochain'a gönderildi.");
   } catch (error) {
-    console.error("HoloTrust write error:", error);
+    console.error("HoloTrust write:", error);
     notify("Kayıt başarısız: " + (error.message || "Bilinmeyen hata"));
-
   } finally {
     busy = false;
     $("saveButton").disabled = false;
