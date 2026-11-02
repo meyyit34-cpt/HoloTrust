@@ -1,3 +1,4 @@
+
 use hdk::prelude::*;
 use identity_integrity::{AgentProfile, AgentType, EntryTypes, LinkTypes, ReputationReview};
 
@@ -60,11 +61,7 @@ fn index_profile(action_hash: ActionHash) -> ExternResult<()> {
 
 #[hdk_extern]
 pub fn create_profile(input: CreateProfileInput) -> ExternResult<ActionHash> {
-    let profile = profile_from_input(
-        input.display_name,
-        input.agent_type,
-        input.description,
-    );
+    let profile = profile_from_input(input.display_name, input.agent_type, input.description);
 
     let action_hash = create_entry(EntryTypes::AgentProfile(profile))?;
     index_profile(action_hash.clone())?;
@@ -117,32 +114,24 @@ pub fn get_profile(input: GetProfileInput) -> ExternResult<Option<Record>> {
 pub fn update_profile(input: UpdateProfileInput) -> ExternResult<ActionHash> {
     let agent = agent_info()?.agent_initial_pubkey;
 
-    let original_record = get(
-        input.action_hash.clone(),
-        GetOptions::default(),
-    )?
-    .ok_or(wasm_error!(
-        WasmErrorInner::Guest("Profile not found".into())
-    ))?;
+    let original_record = get(input.action_hash.clone(), GetOptions::default())?.ok_or(
+        wasm_error!(WasmErrorInner::Guest("Profile not found".into())),
+    )?;
 
     if original_record.action().author() != &agent
-        || original_record.entry().to_app_option::<AgentProfile>()?.is_none()
+        || original_record
+            .entry()
+            .to_app_option::<AgentProfile>()?
+            .is_none()
     {
-        return Err(wasm_error!(
-            WasmErrorInner::Guest("You can only update your own profile".into())
-        ));
+        return Err(wasm_error!(WasmErrorInner::Guest(
+            "You can only update your own profile".into()
+        )));
     }
 
-    let profile = profile_from_input(
-        input.display_name,
-        input.agent_type,
-        input.description,
-    );
+    let profile = profile_from_input(input.display_name, input.agent_type, input.description);
 
-    let updated_hash = update_entry(
-        input.action_hash,
-        &EntryTypes::AgentProfile(profile),
-    )?;
+    let updated_hash = update_entry(input.action_hash, &EntryTypes::AgentProfile(profile))?;
 
     let links = get_links(
         LinkQuery::try_new(agent, LinkTypes::AgentToProfile)?,
@@ -163,16 +152,13 @@ pub fn create_review(input: CreateReviewInput) -> ExternResult<ActionHash> {
     let author = agent_info()?.agent_initial_pubkey;
 
     if author == input.subject_agent {
-        return Err(wasm_error!(
-            WasmErrorInner::Guest("You cannot review your own agent".into())
-        ));
+        return Err(wasm_error!(WasmErrorInner::Guest(
+            "You cannot review your own agent".into()
+        )));
     }
 
     let existing_links = get_links(
-        LinkQuery::try_new(
-            input.subject_agent.clone(),
-            LinkTypes::AgentToReview,
-        )?,
+        LinkQuery::try_new(input.subject_agent.clone(), LinkTypes::AgentToReview)?,
         GetStrategy::default(),
     )?;
 
@@ -181,10 +167,7 @@ pub fn create_review(input: CreateReviewInput) -> ExternResult<ActionHash> {
             continue;
         };
 
-        let Some(existing_record) = get(
-            existing_hash,
-            GetOptions::default(),
-        )? else {
+        let Some(existing_record) = get(existing_hash, GetOptions::default())? else {
             continue;
         };
 
@@ -198,11 +181,9 @@ pub fn create_review(input: CreateReviewInput) -> ExternResult<ActionHash> {
             .map_err(|e| wasm_error!(WasmErrorInner::Guest(e.to_string())))?
         {
             if existing_review.subject_agent == input.subject_agent {
-                return Err(wasm_error!(
-                    WasmErrorInner::Guest(
-                        "You have already reviewed this agent".into()
-                    )
-                ));
+                return Err(wasm_error!(WasmErrorInner::Guest(
+                    "You have already reviewed this agent".into()
+                )));
             }
         }
     }
@@ -214,9 +195,7 @@ pub fn create_review(input: CreateReviewInput) -> ExternResult<ActionHash> {
         comment: input.comment,
     };
 
-    let review_hash = create_entry(
-        EntryTypes::ReputationReview(review),
-    )?;
+    let review_hash = create_entry(EntryTypes::ReputationReview(review))?;
 
     create_link(
         input.subject_agent,
@@ -231,10 +210,7 @@ pub fn create_review(input: CreateReviewInput) -> ExternResult<ActionHash> {
 #[hdk_extern]
 pub fn get_reviews(input: GetReviewsInput) -> ExternResult<Vec<Record>> {
     let links = get_links(
-        LinkQuery::try_new(
-            input.subject_agent.clone(),
-            LinkTypes::AgentToReview,
-        )?,
+        LinkQuery::try_new(input.subject_agent.clone(), LinkTypes::AgentToReview)?,
         GetStrategy::default(),
     )?;
 
@@ -245,10 +221,7 @@ pub fn get_reviews(input: GetReviewsInput) -> ExternResult<Vec<Record>> {
             continue;
         };
 
-        let Some(record) = get(
-            action_hash,
-            GetOptions::default(),
-        )? else {
+        let Some(record) = get(action_hash, GetOptions::default())? else {
             continue;
         };
 
@@ -267,9 +240,7 @@ pub fn get_reviews(input: GetReviewsInput) -> ExternResult<Vec<Record>> {
 }
 
 #[hdk_extern]
-pub fn get_reputation_summary(
-    input: GetReviewsInput,
-) -> ExternResult<ReputationSummary> {
+pub fn get_reputation_summary(input: GetReviewsInput) -> ExternResult<ReputationSummary> {
     let records = get_reviews(input)?;
 
     let mut total_rating: u64 = 0;
