@@ -59,7 +59,7 @@ pub fn validate_profile(profile: &AgentProfile) -> Result<(), String> {
 /// Holochain validation callback.
 #[hdk_extern]
 pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
-    match op.flattened()? {
+    match op.flattened::<EntryTypes, ()>()? {
         FlatOp::CreateEntry(OpEntry::CreateEntry {
             app_entry: EntryTypes::AgentProfile(profile),
             ..
