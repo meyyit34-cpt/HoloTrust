@@ -13,7 +13,7 @@ jobs:
     runs-on: ubuntu-latest
 
     env:
-      CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUSTFLAGS: --cfg getrandom_backend="custom"
+      CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUSTFLAGS: '--cfg getrandom_backend="custom" -C link-arg=--allow-undefined'
 
     steps:
       - name: Checkout repository
