@@ -1,6 +1,4 @@
-
 name: HoloTrust CI
-
 on:
   push:
     branches:
