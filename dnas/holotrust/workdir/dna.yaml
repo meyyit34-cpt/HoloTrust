@@ -1,0 +1,18 @@
+manifest_version: '0'
+name: holotrust
+
+integrity:
+  network_seed: null
+  properties: null
+  zomes:
+    - name: identity_integrity
+      hash: null
+      path: ../../../target/wasm32-unknown-unknown/release/identity_integrity.wasm
+
+coordinator:
+  zomes:
+    - name: identity_coordinator
+      hash: null
+      path: ../../../target/wasm32-unknown-unknown/release/identity_coordinator.wasm
+      dependencies:
+        - name: identity_integrity
