@@ -1,4 +1,3 @@
-
 use hdk::prelude::*;
 use identity_integrity::{AgentProfile, AgentType, EntryTypes, LinkTypes};
 
