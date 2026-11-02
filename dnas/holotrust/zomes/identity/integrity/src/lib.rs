@@ -1,3 +1,4 @@
+
 use hdi::prelude::*;
 use serde::{Deserialize, Serialize};
 
@@ -52,6 +53,26 @@ pub fn validate_profile(profile: &AgentProfile) -> Result<(), String> {
     Ok(())
 }
 
+fn validate_profile_update(
+    update_author: &AgentPubKey,
+    original_action_hash: ActionHash,
+    profile: &AgentProfile,
+) -> ExternResult<ValidateCallbackResult> {
+    let original_record = must_get_valid_record(original_action_hash)?;
+
+    if update_author != original_record.action().author() {
+        return Ok(ValidateCallbackResult::Invalid(
+            "Agents can only update their own profiles".into(),
+        ));
+    }
+
+    if let Err(reason) = validate_profile(profile) {
+        return Ok(ValidateCallbackResult::Invalid(reason));
+    }
+
+    Ok(ValidateCallbackResult::Valid)
+}
+
 #[hdk_extern]
 pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
     match op.flattened::<EntryTypes, LinkTypes>()? {
@@ -62,6 +83,15 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
             Ok(()) => Ok(ValidateCallbackResult::Valid),
             Err(reason) => Ok(ValidateCallbackResult::Invalid(reason)),
         },
+
+        FlatOp::Update(OpUpdate::Entry {
+            app_entry: EntryTypes::AgentProfile(profile),
+            action,
+        }) => validate_profile_update(
+            action.author(),
+            action.original_action_address.clone(),
+            &profile,
+        ),
 
         FlatOp::Link(OpLink::CreateLink {
             link_type: LinkTypes::AgentToProfile,
