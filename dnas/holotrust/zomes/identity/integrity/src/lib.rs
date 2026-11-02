@@ -63,15 +63,12 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
             Err(reason) => Ok(ValidateCallbackResult::Invalid(reason)),
         },
 
-        FlatOp::RegisterCreateLink {
-            base_address,
-            target_address,
+        FlatOp::Link(OpLink::CreateLink {
             link_type: LinkTypes::AgentToProfile,
             action,
-            ..
-        } => {
-            let owner = base_address.into_agent_pub_key();
-            let target = target_address.into_action_hash();
+        }) => {
+            let owner = action.base_address.clone().into_agent_pub_key();
+            let target = action.target_address.clone().into_action_hash();
 
             if owner.as_ref() == Some(action.author()) && target.is_some() {
                 Ok(ValidateCallbackResult::Valid)
