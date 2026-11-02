@@ -171,10 +171,7 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
             let subject = action.base_address.clone().into_agent_pub_key();
             let target = action.target_address.clone().into_action_hash();
 
-            if subject.is_some()
-                && subject.as_ref() != Some(action.author())
-                && target.is_some()
-            {
+            if subject.is_some() && subject.as_ref() != Some(action.author()) && target.is_some() {
                 Ok(ValidateCallbackResult::Valid)
             } else {
                 Ok(ValidateCallbackResult::Invalid(
