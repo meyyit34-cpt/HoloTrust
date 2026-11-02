@@ -1,16 +1,18 @@
+
 name: HoloTrust CI
 
 on:
   push:
     branches:
       - main
+      - security/review-integrity
   pull_request:
 
 jobs:
   test-and-package:
     name: Test, build and package HoloTrust
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 100
 
     env:
       CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUSTFLAGS: '--cfg getrandom_backend="custom" -C link-arg=--allow-undefined'
@@ -24,6 +26,17 @@ jobs:
         with:
           components: rustfmt
           targets: wasm32-unknown-unknown
+
+      - name: Cache Cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
 
       - name: Check formatting
         run: cargo fmt --all -- --check
@@ -39,18 +52,22 @@ jobs:
           test -s target/wasm32-unknown-unknown/release/identity_integrity.wasm
           test -s target/wasm32-unknown-unknown/release/identity_coordinator.wasm
 
-      - name: Install Nix
+      - name: Install Nix with Holochain cache
         uses: cachix/install-nix-action@v31
         with:
           github_access_token: ${{ secrets.GITHUB_TOKEN }}
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+            substituters = https://cache.nixos.org https://holochain-ci.cachix.org
+            trusted-public-keys = cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY= holochain-ci.cachix.org-1:5IUSkZc0aoRS53rfkvH9Kid40NpyjwCMCzwRTXy+QN8=
 
       - name: Package DNA and hApp
         working-directory: dnas/holotrust/workdir
         run: |
           nix develop --print-build-logs github:holochain/holonix?ref=main-0.7 -c bash -euo pipefail -c '
             hc --version
-            hc dna pack
-            hc app pack
+            hc dna pack .
+            hc app pack .
             test -s holotrust.dna
             test -s holotrust.happ
           '
