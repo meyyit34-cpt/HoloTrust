@@ -1,3 +1,4 @@
+
 use hdk::prelude::*;
 use identity_integrity::{AgentProfile, AgentType, EntryTypes, LinkTypes, ReputationReview};
 
@@ -89,7 +90,12 @@ pub fn get_my_profile(_: ()) -> ExternResult<Option<Record>> {
         return Ok(None);
     };
 
-    if record.entry().to_app_option::<AgentProfile>()?.is_none() {
+    if record
+        .entry()
+        .to_app_option::<AgentProfile>()
+        .map_err(|e| wasm_error!(WasmErrorInner::Guest(e.to_string())))?
+        .is_none()
+    {
         return Ok(None);
     }
 
@@ -102,7 +108,12 @@ pub fn get_profile(input: GetProfileInput) -> ExternResult<Option<Record>> {
         return Ok(None);
     };
 
-    if record.entry().to_app_option::<AgentProfile>()?.is_none() {
+    if record
+        .entry()
+        .to_app_option::<AgentProfile>()
+        .map_err(|e| wasm_error!(WasmErrorInner::Guest(e.to_string())))?
+        .is_none()
+    {
         return Ok(None);
     }
 
@@ -120,7 +131,8 @@ pub fn update_profile(input: UpdateProfileInput) -> ExternResult<ActionHash> {
     if original_record.action().author() != &agent
         || original_record
             .entry()
-            .to_app_option::<AgentProfile>()?
+            .to_app_option::<AgentProfile>()
+            .map_err(|e| wasm_error!(WasmErrorInner::Guest(e.to_string())))?
             .is_none()
     {
         return Err(wasm_error!(WasmErrorInner::Guest(
