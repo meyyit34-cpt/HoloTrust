@@ -8,8 +8,8 @@ on:
   pull_request:
 
 jobs:
-  test:
-    name: Format, test and WASM build
+  test-and-package:
+    name: Test, build and package HoloTrust
     runs-on: ubuntu-latest
 
     env:
@@ -38,3 +38,27 @@ jobs:
         run: |
           test -f target/wasm32-unknown-unknown/release/identity_integrity.wasm
           test -f target/wasm32-unknown-unknown/release/identity_coordinator.wasm
+
+      - name: Install Nix
+        uses: cachix/install-nix-action@v31
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Package DNA
+        run: nix develop github:holochain/holonix?ref=main-0.7 -c hc dna pack
+        working-directory: dnas/holotrust/workdir
+
+      - name: Package hApp
+        run: nix develop github:holochain/holonix?ref=main-0.7 -c hc app pack
+        working-directory: dnas/holotrust/workdir
+
+      - name: Verify hApp bundle
+        run: test -s holotrust.happ
+        working-directory: dnas/holotrust/workdir
+
+      - name: Upload hApp bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: holotrust-happ
+          path: dnas/holotrust/workdir/holotrust.happ
+          if-no-files-found: error
