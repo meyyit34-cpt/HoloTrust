@@ -1,3 +1,4 @@
+
 import { AppWebsocket } from "https://esm.sh/@holochain/client@0.21.0";
 
 let connectionPromise = null;
@@ -9,7 +10,10 @@ const ALLOWED_FUNCTIONS = new Set([
   "create_profile",
   "get_my_profile",
   "get_profile",
-  "update_profile"
+  "update_profile",
+  "create_review",
+  "get_reviews",
+  "get_reputation_summary"
 ]);
 
 export async function connectHolochain() {
@@ -69,6 +73,10 @@ export async function disconnectHolochain() {
   if (!connectionPromise) return;
 
   const connection = await connectionPromise;
-  await connection.client.client.close();
+
+  if (typeof connection.client.client?.close === "function") {
+    await connection.client.client.close();
+  }
+
   connectionPromise = null;
 }
