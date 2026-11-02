@@ -21,10 +21,7 @@ pub struct UpdateProfileInput {
     pub description: Option<String>,
 }
 
-fn profile_from_input(
-    display_name: String,
-    agent_type: AgentType,
-    description: Option<String>,
+let profile = profile_from_input(input.display_name, input.agent_type, input.description);
 ) -> AgentProfile {
     AgentProfile {
         schema_version: 1,
