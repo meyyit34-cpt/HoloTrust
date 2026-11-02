@@ -1,3 +1,4 @@
+
 use hdk::prelude::*;
 use identity_integrity::{AgentProfile, AgentType, EntryTypes, LinkTypes};
 
@@ -74,12 +75,32 @@ pub fn get_profile(input: GetProfileInput) -> ExternResult<Option<Record>> {
 
 #[hdk_extern]
 pub fn update_profile(input: UpdateProfileInput) -> ExternResult<ActionHash> {
-    let profile = profile_from_input(input.display_name, input.agent_type, input.description);
-    let updated_hash = update_entry(input.action_hash, &EntryTypes::AgentProfile(profile))?;
-
     let agent = agent_info()?.agent_initial_pubkey;
+
+    let original_record = get(input.action_hash.clone(), GetOptions::default())?
+        .ok_or(wasm_error!(WasmErrorInner::Guest(
+            "Profile not found".into(),
+        )))?;
+
+    if original_record.action().author() != &agent {
+        return Err(wasm_error!(WasmErrorInner::Guest(
+            "You can only update your own profile".into(),
+        )));
+    }
+
+    let profile = profile_from_input(
+        input.display_name,
+        input.agent_type,
+        input.description,
+    );
+
+    let updated_hash = update_entry(
+        input.action_hash,
+        &EntryTypes::AgentProfile(profile),
+    )?;
+
     let links = get_links(
-        LinkQuery::try_new(agent.clone(), LinkTypes::AgentToProfile)?,
+        LinkQuery::try_new(agent, LinkTypes::AgentToProfile)?,
         GetStrategy::default(),
     )?;
 
@@ -88,5 +109,6 @@ pub fn update_profile(input: UpdateProfileInput) -> ExternResult<ActionHash> {
     }
 
     index_profile(updated_hash.clone())?;
+
     Ok(updated_hash)
 }
