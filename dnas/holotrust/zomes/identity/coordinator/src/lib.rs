@@ -36,21 +36,36 @@ fn profile_from_input(
 
 fn index_profile(action_hash: ActionHash) -> ExternResult<()> {
     let agent = agent_info()?.agent_initial_pubkey;
-    create_link(agent, action_hash, LinkTypes::AgentToProfile, "profile")?;
+
+    create_link(
+        agent,
+        action_hash,
+        LinkTypes::AgentToProfile,
+        "profile",
+    )?;
+
     Ok(())
 }
 
 #[hdk_extern]
 pub fn create_profile(input: CreateProfileInput) -> ExternResult<ActionHash> {
-    let profile = profile_from_input(input.display_name, input.agent_type, input.description);
+    let profile = profile_from_input(
+        input.display_name,
+        input.agent_type,
+        input.description,
+    );
+
     let action_hash = create_entry(EntryTypes::AgentProfile(profile))?;
+
     index_profile(action_hash.clone())?;
+
     Ok(action_hash)
 }
 
 #[hdk_extern]
 pub fn get_my_profile(_: ()) -> ExternResult<Option<Record>> {
     let agent = agent_info()?.agent_initial_pubkey;
+
     let links = get_links(
         LinkQuery::try_new(agent, LinkTypes::AgentToProfile)?,
         GetStrategy::default(),
@@ -76,10 +91,13 @@ pub fn get_profile(input: GetProfileInput) -> ExternResult<Option<Record>> {
 pub fn update_profile(input: UpdateProfileInput) -> ExternResult<ActionHash> {
     let agent = agent_info()?.agent_initial_pubkey;
 
-    let original_record = get(input.action_hash.clone(), GetOptions::default())?
-        .ok_or(wasm_error!(WasmErrorInner::Guest(
-            "Profile not found".into(),
-        )))?;
+    let original_record = get(
+        input.action_hash.clone(),
+        GetOptions::default(),
+    )?
+    .ok_or(wasm_error!(WasmErrorInner::Guest(
+        "Profile not found".into(),
+    )))?;
 
     if original_record.action().author() != &agent {
         return Err(wasm_error!(WasmErrorInner::Guest(
@@ -104,7 +122,10 @@ pub fn update_profile(input: UpdateProfileInput) -> ExternResult<ActionHash> {
     )?;
 
     for link in links {
-        delete_link(link.create_link_hash, GetOptions::default())?;
+        delete_link(
+            link.create_link_hash,
+            GetOptions::default(),
+        )?;
     }
 
     index_profile(updated_hash.clone())?;
