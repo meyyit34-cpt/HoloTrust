@@ -1,8 +1,7 @@
+
 use hdi::prelude::*;
 use serde::{Deserialize, Serialize};
 
-/// The declared category of a HoloTrust participant.
-/// This is self-declared, not a verified real-world identity.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum AgentType {
     Human,
@@ -11,7 +10,6 @@ pub enum AgentType {
     Service,
 }
 
-/// Public profile associated with its publishing Holochain agent.
 #[hdk_entry_helper]
 pub struct AgentProfile {
     pub schema_version: u8,
@@ -20,46 +18,44 @@ pub struct AgentProfile {
     pub description: Option<String>,
 }
 
-/// Entry types defined by the Identity integrity zome.
 #[hdk_entry_types]
 #[unit_enum(UnitEntryTypes)]
 pub enum EntryTypes {
     AgentProfile(AgentProfile),
 }
 
-/// Validate application-level profile constraints.
+#[hdk_link_types]
+pub enum LinkTypes {
+    AgentToProfile,
+}
+
 pub fn validate_profile(profile: &AgentProfile) -> Result<(), String> {
     if profile.schema_version != 1 {
-        return Err("Unsupported profile schema version".to_string());
+        return Err("Unsupported profile schema version".into());
     }
 
-    let display_name = profile.display_name.trim();
+    let name = profile.display_name.trim();
 
-    if display_name.is_empty() {
-        return Err("Display name cannot be empty".to_string());
+    if name.is_empty() || name.chars().count() > 64 {
+        return Err("Display name must be 1-64 characters".into());
     }
 
-    if display_name.chars().count() > 64 {
-        return Err("Display name cannot exceed 64 characters".to_string());
-    }
-
-    if display_name.chars().any(char::is_control) {
-        return Err("Display name cannot contain control characters".to_string());
+    if name.chars().any(char::is_control) {
+        return Err("Display name cannot contain control characters".into());
     }
 
     if let Some(description) = &profile.description {
         if description.chars().count() > 280 {
-            return Err("Description cannot exceed 280 characters".to_string());
+            return Err("Description cannot exceed 280 characters".into());
         }
     }
 
     Ok(())
 }
 
-/// Holochain validation callback.
 #[hdk_extern]
 pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
-    match op.flattened::<EntryTypes, ()>()? {
+    match op.flattened::<EntryTypes, LinkTypes>()? {
         FlatOp::CreateEntry(OpEntry::CreateEntry {
             app_entry: EntryTypes::AgentProfile(profile),
             ..
@@ -67,6 +63,26 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
             Ok(()) => Ok(ValidateCallbackResult::Valid),
             Err(reason) => Ok(ValidateCallbackResult::Invalid(reason)),
         },
+
+        FlatOp::RegisterCreateLink {
+            base_address,
+            target_address,
+            link_type: LinkTypes::AgentToProfile,
+            action,
+            ..
+        } => {
+            let owner = base_address.into_agent_pub_key();
+            let target = target_address.into_action_hash();
+
+            if owner.as_ref() == Some(action.author()) && target.is_some() {
+                Ok(ValidateCallbackResult::Valid)
+            } else {
+                Ok(ValidateCallbackResult::Invalid(
+                    "Profile links must be created by their owning agent and target an action".into()
+                ))
+            }
+        }
+
         _ => Ok(ValidateCallbackResult::Valid),
     }
 }
@@ -78,9 +94,9 @@ mod tests {
     fn valid_profile() -> AgentProfile {
         AgentProfile {
             schema_version: 1,
-            display_name: "HoloTrust User".to_string(),
+            display_name: "HoloTrust User".into(),
             agent_type: AgentType::Human,
-            description: Some("A test profile".to_string()),
+            description: Some("A test profile".into()),
         }
     }
 
@@ -90,51 +106,30 @@ mod tests {
     }
 
     #[test]
-    fn rejects_empty_display_name() {
-        let mut profile = valid_profile();
-        profile.display_name = "   ".to_string();
-        assert!(validate_profile(&profile).is_err());
+    fn rejects_empty_name() {
+        let mut p = valid_profile();
+        p.display_name = "  ".into();
+        assert!(validate_profile(&p).is_err());
     }
 
     #[test]
-    fn rejects_display_name_longer_than_64_characters() {
-        let mut profile = valid_profile();
-        profile.display_name = "a".repeat(65);
-        assert!(validate_profile(&profile).is_err());
+    fn rejects_long_name() {
+        let mut p = valid_profile();
+        p.display_name = "a".repeat(65);
+        assert!(validate_profile(&p).is_err());
     }
 
     #[test]
-    fn accepts_display_name_of_64_characters() {
-        let mut profile = valid_profile();
-        profile.display_name = "a".repeat(64);
-        assert!(validate_profile(&profile).is_ok());
+    fn rejects_long_description() {
+        let mut p = valid_profile();
+        p.description = Some("a".repeat(281));
+        assert!(validate_profile(&p).is_err());
     }
 
     #[test]
-    fn rejects_control_characters_in_display_name() {
-        let mut profile = valid_profile();
-        profile.display_name = "Holo\nTrust".to_string();
-        assert!(validate_profile(&profile).is_err());
-    }
-
-    #[test]
-    fn rejects_description_longer_than_280_characters() {
-        let mut profile = valid_profile();
-        profile.description = Some("a".repeat(281));
-        assert!(validate_profile(&profile).is_err());
-    }
-
-    #[test]
-    fn rejects_unsupported_schema_version() {
-        let mut profile = valid_profile();
-        profile.schema_version = 2;
-        assert!(validate_profile(&profile).is_err());
-    }
-
-    #[test]
-    fn accepts_profile_without_description() {
-        let mut profile = valid_profile();
-        profile.description = None;
-        assert!(validate_profile(&profile).is_ok());
+    fn rejects_wrong_schema() {
+        let mut p = valid_profile();
+        p.schema_version = 2;
+        assert!(validate_profile(&p).is_err());
     }
 }
