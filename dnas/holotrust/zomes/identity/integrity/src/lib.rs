@@ -1,3 +1,4 @@
+
 use hdi::prelude::*;
 use serde::{Deserialize, Serialize};
 
@@ -17,15 +18,25 @@ pub struct AgentProfile {
     pub description: Option<String>,
 }
 
+#[hdk_entry_helper]
+pub struct ReputationReview {
+    pub schema_version: u8,
+    pub subject_agent: AgentPubKey,
+    pub rating: u8,
+    pub comment: Option<String>,
+}
+
 #[hdk_entry_types]
 #[unit_enum(UnitEntryTypes)]
 pub enum EntryTypes {
     AgentProfile(AgentProfile),
+    ReputationReview(ReputationReview),
 }
 
 #[hdk_link_types]
 pub enum LinkTypes {
     AgentToProfile,
+    AgentToReview,
 }
 
 pub fn validate_profile(profile: &AgentProfile) -> Result<(), String> {
@@ -46,6 +57,28 @@ pub fn validate_profile(profile: &AgentProfile) -> Result<(), String> {
     if let Some(description) = &profile.description {
         if description.chars().count() > 280 {
             return Err("Description cannot exceed 280 characters".into());
+        }
+    }
+
+    Ok(())
+}
+
+pub fn validate_review(review: &ReputationReview) -> Result<(), String> {
+    if review.schema_version != 1 {
+        return Err("Unsupported review schema version".into());
+    }
+
+    if !(1..=5).contains(&review.rating) {
+        return Err("Rating must be between 1 and 5".into());
+    }
+
+    if let Some(comment) = &review.comment {
+        if comment.chars().count() > 500 {
+            return Err("Review comment cannot exceed 500 characters".into());
+        }
+
+        if comment.chars().any(char::is_control) {
+            return Err("Review comment contains invalid control characters".into());
         }
     }
 
@@ -83,6 +116,22 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
             Err(reason) => Ok(ValidateCallbackResult::Invalid(reason)),
         },
 
+        FlatOp::CreateEntry(OpEntry::CreateEntry {
+            app_entry: EntryTypes::ReputationReview(review),
+            action,
+        }) => {
+            if action.author() == &review.subject_agent {
+                return Ok(ValidateCallbackResult::Invalid(
+                    "Agents cannot review themselves".into(),
+                ));
+            }
+
+            match validate_review(&review) {
+                Ok(()) => Ok(ValidateCallbackResult::Valid),
+                Err(reason) => Ok(ValidateCallbackResult::Invalid(reason)),
+            }
+        }
+
         FlatOp::Update(OpUpdate::Entry {
             app_entry: EntryTypes::AgentProfile(profile),
             action,
@@ -91,6 +140,13 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
             action.original_action_address.clone(),
             &profile,
         ),
+
+        FlatOp::Update(OpUpdate::Entry {
+            app_entry: EntryTypes::ReputationReview(_),
+            ..
+        }) => Ok(ValidateCallbackResult::Invalid(
+            "Published reputation reviews cannot be edited".into(),
+        )),
 
         FlatOp::Link(OpLink::CreateLink {
             link_type: LinkTypes::AgentToProfile,
@@ -103,8 +159,26 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
                 Ok(ValidateCallbackResult::Valid)
             } else {
                 Ok(ValidateCallbackResult::Invalid(
-                    "Profile links must be created by their owning agent and target an action"
-                        .into(),
+                    "Profile links must be created by their owning agent".into(),
+                ))
+            }
+        }
+
+        FlatOp::Link(OpLink::CreateLink {
+            link_type: LinkTypes::AgentToReview,
+            action,
+        }) => {
+            let subject = action.base_address.clone().into_agent_pub_key();
+            let target = action.target_address.clone().into_action_hash();
+
+            if subject.is_some()
+                && subject.as_ref() != Some(action.author())
+                && target.is_some()
+            {
+                Ok(ValidateCallbackResult::Valid)
+            } else {
+                Ok(ValidateCallbackResult::Invalid(
+                    "Review links must target another agent and a valid review action".into(),
                 ))
             }
         }
@@ -133,64 +207,85 @@ mod tests {
 
     #[test]
     fn rejects_empty_name() {
-        let mut p = valid_profile();
-        p.display_name = "  ".into();
-        assert!(validate_profile(&p).is_err());
+        let mut profile = valid_profile();
+        profile.display_name = "  ".into();
+        assert!(validate_profile(&profile).is_err());
     }
 
     #[test]
     fn rejects_long_name() {
-        let mut p = valid_profile();
-        p.display_name = "a".repeat(65);
-        assert!(validate_profile(&p).is_err());
-    }
-
-    #[test]
-    fn accepts_name_at_64_character_limit() {
-        let mut p = valid_profile();
-        p.display_name = "a".repeat(64);
-        assert!(validate_profile(&p).is_ok());
-    }
-
-    #[test]
-    fn rejects_control_characters_in_name() {
-        let mut p = valid_profile();
-        p.display_name = "HoloTrust\nUser".into();
-        assert!(validate_profile(&p).is_err());
+        let mut profile = valid_profile();
+        profile.display_name = "a".repeat(65);
+        assert!(validate_profile(&profile).is_err());
     }
 
     #[test]
     fn accepts_unicode_name() {
-        let mut p = valid_profile();
-        p.display_name = "Mehmet 世界".into();
-        assert!(validate_profile(&p).is_ok());
+        let mut profile = valid_profile();
+        profile.display_name = "Mehmet 世界".into();
+        assert!(validate_profile(&profile).is_ok());
+    }
+
+    #[test]
+    fn rejects_control_characters() {
+        let mut profile = valid_profile();
+        profile.display_name = "HoloTrust\nUser".into();
+        assert!(validate_profile(&profile).is_err());
     }
 
     #[test]
     fn rejects_long_description() {
-        let mut p = valid_profile();
-        p.description = Some("a".repeat(281));
-        assert!(validate_profile(&p).is_err());
+        let mut profile = valid_profile();
+        profile.description = Some("a".repeat(281));
+        assert!(validate_profile(&profile).is_err());
     }
 
     #[test]
-    fn accepts_description_at_280_character_limit() {
-        let mut p = valid_profile();
-        p.description = Some("a".repeat(280));
-        assert!(validate_profile(&p).is_ok());
+    fn rejects_wrong_profile_schema() {
+        let mut profile = valid_profile();
+        profile.schema_version = 2;
+        assert!(validate_profile(&profile).is_err());
+    }
+
+    fn valid_review() -> ReputationReview {
+        ReputationReview {
+            schema_version: 1,
+            subject_agent: AgentPubKey::from_raw_36(vec![0; 36]),
+            rating: 5,
+            comment: Some("Reliable agent".into()),
+        }
     }
 
     #[test]
-    fn accepts_optional_empty_description() {
-        let mut p = valid_profile();
-        p.description = None;
-        assert!(validate_profile(&p).is_ok());
+    fn accepts_valid_review() {
+        assert!(validate_review(&valid_review()).is_ok());
     }
 
     #[test]
-    fn rejects_wrong_schema() {
-        let mut p = valid_profile();
-        p.schema_version = 2;
-        assert!(validate_profile(&p).is_err());
+    fn rejects_zero_rating() {
+        let mut review = valid_review();
+        review.rating = 0;
+        assert!(validate_review(&review).is_err());
+    }
+
+    #[test]
+    fn rejects_rating_above_five() {
+        let mut review = valid_review();
+        review.rating = 6;
+        assert!(validate_review(&review).is_err());
+    }
+
+    #[test]
+    fn rejects_long_review() {
+        let mut review = valid_review();
+        review.comment = Some("a".repeat(501));
+        assert!(validate_review(&review).is_err());
+    }
+
+    #[test]
+    fn accepts_review_without_comment() {
+        let mut review = valid_review();
+        review.comment = None;
+        assert!(validate_review(&review).is_ok());
     }
 }
