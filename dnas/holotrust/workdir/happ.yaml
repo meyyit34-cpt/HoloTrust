@@ -1,0 +1,18 @@
+manifest_version: '0'
+name: holotrust
+description: Decentralized identity and reputation network built on Holochain.
+
+roles:
+  - name: identity
+    provisioning:
+      strategy: create
+      deferred: false
+    dna:
+      path: ./holotrust.dna
+      modifiers:
+        network_seed: null
+        properties: null
+      installed_hash: null
+      clone_limit: 0
+
+allow_deferred_memproofs: false
