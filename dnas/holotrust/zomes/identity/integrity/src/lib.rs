@@ -1,3 +1,4 @@
+
 use hdi::prelude::*;
 use serde::{Deserialize, Serialize};
 
@@ -117,10 +118,45 @@ mod tests {
     }
 
     #[test]
+    fn accepts_name_at_64_character_limit() {
+        let mut p = valid_profile();
+        p.display_name = "a".repeat(64);
+        assert!(validate_profile(&p).is_ok());
+    }
+
+    #[test]
+    fn rejects_control_characters_in_name() {
+        let mut p = valid_profile();
+        p.display_name = "HoloTrust\nUser".into();
+        assert!(validate_profile(&p).is_err());
+    }
+
+    #[test]
+    fn accepts_unicode_name() {
+        let mut p = valid_profile();
+        p.display_name = "Mehmet 世界".into();
+        assert!(validate_profile(&p).is_ok());
+    }
+
+    #[test]
     fn rejects_long_description() {
         let mut p = valid_profile();
         p.description = Some("a".repeat(281));
         assert!(validate_profile(&p).is_err());
+    }
+
+    #[test]
+    fn accepts_description_at_280_character_limit() {
+        let mut p = valid_profile();
+        p.description = Some("a".repeat(280));
+        assert!(validate_profile(&p).is_ok());
+    }
+
+    #[test]
+    fn accepts_optional_empty_description() {
+        let mut p = valid_profile();
+        p.description = None;
+        assert!(validate_profile(&p).is_ok());
     }
 
     #[test]
