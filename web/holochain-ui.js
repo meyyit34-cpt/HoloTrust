@@ -34,10 +34,40 @@ status.appendChild(connectButton);
 const readButton = document.createElement("button");
 readButton.type = "button";
 readButton.className = "secondary";
-readButton.textContent = "Ağdan profilimi oku";
+readButton.textContent = "Profilimi ağdan oku";
 readButton.disabled = true;
-readButton.style.marginLeft = "8px";
 status.appendChild(readButton);
+
+const publicSection = document.createElement("section");
+publicSection.style.marginTop = "24px";
+publicSection.style.padding = "18px";
+publicSection.style.border = "1px solid #303746";
+publicSection.style.borderRadius = "12px";
+
+const publicTitle = document.createElement("h3");
+publicTitle.textContent = "Başka bir ajanı keşfet";
+publicSection.appendChild(publicTitle);
+
+const publicInput = document.createElement("input");
+publicInput.type = "text";
+publicInput.placeholder = "Profil ActionHash değerini yapıştır";
+publicInput.maxLength = 100;
+publicInput.style.width = "100%";
+publicInput.style.marginBottom = "10px";
+publicSection.appendChild(publicInput);
+
+const publicButton = document.createElement("button");
+publicButton.type = "button";
+publicButton.className = "secondary";
+publicButton.textContent = "Profili görüntüle";
+publicButton.disabled = true;
+publicSection.appendChild(publicButton);
+
+const publicResult = document.createElement("div");
+publicResult.style.marginTop = "14px";
+publicSection.appendChild(publicResult);
+
+$("profileForm").after(publicSection);
 
 function notify(message) {
   const toast = $("toast");
@@ -54,6 +84,40 @@ function setStatus(message, active = false) {
 
 function selectedAgentType() {
   return document.querySelector(".type.active")?.dataset.type || "Human";
+}
+
+function decodeProfile(record) {
+  const present = record?.entry?.Present;
+  const bytes = present?.entry ?? present;
+
+  if (!bytes) {
+    throw new Error("Profil verisi okunamadı.");
+  }
+
+  const entry = decode(bytes);
+  const actionHash = record.signed_action?.hashed?.hash;
+
+  if (!actionHash) {
+    throw new Error("ActionHash bulunamadı.");
+  }
+
+  const profile = {
+    schemaVersion: entry.schema_version ?? 1,
+    displayName: entry.display_name,
+    agentType: entry.agent_type,
+    description: entry.description || "",
+    localId: encodeHashToBase64(actionHash),
+    updatedAt: new Date().toISOString()
+  };
+
+  if (
+    typeof profile.displayName !== "string" ||
+    !["Human", "AI", "Service"].includes(profile.agentType)
+  ) {
+    throw new Error("Profil biçimi geçersiz.");
+  }
+
+  return profile;
 }
 
 function showProfile(profile) {
@@ -73,28 +137,6 @@ function showProfile(profile) {
   $("cardDescription").textContent =
     profile.description || "Henüz açıklama eklenmedi.";
   $("profileId").textContent = profile.localId;
-  $("saveButton").textContent = "Profili güncelle";
-}
-
-function normalizeProfile(entry, actionHash) {
-  const displayName = entry.display_name;
-  const agentType = entry.agent_type;
-
-  if (
-    typeof displayName !== "string" ||
-    !["Human", "AI", "Service"].includes(agentType)
-  ) {
-    throw new Error("DHT profil verisi beklenen şemayla uyuşmuyor.");
-  }
-
-  return {
-    schemaVersion: entry.schema_version ?? 1,
-    displayName,
-    agentType,
-    description: entry.description || "",
-    localId: encodeHashToBase64(actionHash),
-    updatedAt: new Date().toISOString()
-  };
 }
 
 connectButton.addEventListener("click", async () => {
@@ -108,11 +150,12 @@ connectButton.addEventListener("click", async () => {
     const connection = await connectHolochain();
     connected = true;
 
-    const agentKey = encodeHashToBase64(connection.agentPubKey);
+    const key = encodeHashToBase64(connection.agentPubKey);
 
-    setStatus("Bağlandı · " + agentKey.slice(0, 12), true);
+    setStatus("Bağlandı · " + key.slice(0, 12), true);
     connectButton.textContent = "Bağlantı aktif";
     readButton.disabled = false;
+    publicButton.disabled = false;
 
     notify("Holochain bağlantısı kuruldu.");
   } catch (error) {
@@ -131,31 +174,16 @@ readButton.addEventListener("click", async () => {
 
   busy = true;
   readButton.disabled = true;
-  readButton.textContent = "DHT okunuyor...";
 
   try {
     const record = await callIdentity("get_my_profile", null);
 
     if (!record) {
-      notify("DHT üzerinde henüz profil bulunamadı.");
+      notify("Henüz ağda profilin bulunmuyor.");
       return;
     }
 
-    const present = record.entry?.Present;
-    const entryBytes = present?.entry ?? present;
-
-    if (!entryBytes) {
-      throw new Error("Profil verisi erişilebilir değil.");
-    }
-
-    const entry = decode(entryBytes);
-    const actionHash = record.signed_action?.hashed?.hash;
-
-    if (!actionHash) {
-      throw new Error("ActionHash bulunamadı.");
-    }
-
-    const profile = normalizeProfile(entry, actionHash);
+    const profile = decodeProfile(record);
 
     localStorage.setItem(hashKey, profile.localId);
     localStorage.setItem(storageKey, JSON.stringify(profile));
@@ -171,15 +199,67 @@ readButton.addEventListener("click", async () => {
     });
 
     showProfile(profile);
-    setStatus("Profil DHT'den yüklendi", true);
-    notify("Profil Holochain kaydından okundu.");
+    setStatus("Profil ağdan yüklendi", true);
+    notify("Profil DHT'den okundu.");
   } catch (error) {
-    console.error("HoloTrust DHT read:", error);
-    notify("Profil okunamadı: " + (error.message || "Bilinmeyen hata"));
+    notify("Okuma hatası: " + error.message);
   } finally {
     busy = false;
     readButton.disabled = !connected;
-    readButton.textContent = "Ağdan profilimi oku";
+  }
+});
+
+publicButton.addEventListener("click", async () => {
+  if (!connected || busy) return;
+
+  const hashText = publicInput.value.trim();
+
+  if (!hashText) {
+    notify("ActionHash girmen gerekiyor.");
+    return;
+  }
+
+  busy = true;
+  publicButton.disabled = true;
+  publicButton.textContent = "Ağda aranıyor...";
+  publicResult.textContent = "";
+
+  try {
+    const actionHash = decodeHashFromBase64(hashText);
+
+    const record = await callIdentity("get_profile", {
+      action_hash: actionHash
+    });
+
+    if (!record) {
+      publicResult.textContent = "Bu ActionHash için profil bulunamadı.";
+      return;
+    }
+
+    const profile = decodeProfile(record);
+
+    const heading = document.createElement("h4");
+    heading.textContent = profile.displayName;
+
+    const type = document.createElement("p");
+    type.textContent = "Ajan türü: " + profile.agentType;
+
+    const description = document.createElement("p");
+    description.textContent =
+      profile.description || "Açıklama bulunmuyor.";
+
+    const hash = document.createElement("p");
+    hash.textContent = "ActionHash: " + profile.localId;
+
+    publicResult.replaceChildren(heading, type, description, hash);
+
+    notify("Profil bulundu.");
+  } catch (error) {
+    publicResult.textContent = "Profil sorgulanamadı: " + error.message;
+  } finally {
+    busy = false;
+    publicButton.disabled = !connected;
+    publicButton.textContent = "Profili görüntüle";
   }
 });
 
@@ -196,7 +276,7 @@ form.addEventListener("submit", async event => {
   const agentType = selectedAgentType();
 
   if (!displayName || displayName.length > 64) {
-    notify("Görünen ad 1–64 karakter olmalıdır.");
+    notify("İsim 1–64 karakter olmalıdır.");
     return;
   }
 
@@ -238,10 +318,10 @@ form.addEventListener("submit", async event => {
     localStorage.setItem(storageKey, JSON.stringify(profile));
 
     showProfile(profile);
-    notify("Profil kaydı Holochain'a gönderildi.");
+    notify("Profil kaydı gönderildi.");
   } catch (error) {
-    console.error("HoloTrust write:", error);
-    notify("Kayıt başarısız: " + (error.message || "Bilinmeyen hata"));
+    console.error("HoloTrust:", error);
+    notify("Kayıt başarısız: " + error.message);
   } finally {
     busy = false;
     $("saveButton").disabled = false;
