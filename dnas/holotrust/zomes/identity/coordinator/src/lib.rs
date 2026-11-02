@@ -84,7 +84,7 @@ pub fn update_profile(input: UpdateProfileInput) -> ExternResult<ActionHash> {
     )?;
 
     for link in links {
-        delete_link(link.create_link_hash)?;
+        delete_link(link.create_link_hash, GetOptions::default())?;
     }
 
     index_profile(updated_hash.clone())?;
