@@ -1,3 +1,4 @@
+
 use hdk::prelude::*;
 use holochain::sweettest::{await_consistency, SweetConductorBatch, SweetDnaFile};
 use identity_coordinator::{
@@ -70,7 +71,7 @@ async fn two_agents_share_profiles_and_cannot_modify_each_others_data() {
     assert_eq!(profile.display_name, "Alice");
 
     let unauthorized_update = conductors[1]
-        .call(
+        .call_fallible::<_, ActionHash>(
             &bob_cell.zome("identity_coordinator"),
             "update_profile",
             UpdateProfileInput {
@@ -200,7 +201,7 @@ async fn independent_agents_can_review_same_subject() {
     }
 
     let duplicate_review = conductors[1]
-        .call(
+        .call_fallible::<_, ActionHash>(
             &bob_cell.zome("identity_coordinator"),
             "create_review",
             CreateReviewInput {
@@ -217,7 +218,7 @@ async fn independent_agents_can_review_same_subject() {
     );
 
     let self_review = conductors[0]
-        .call(
+        .call_fallible::<_, ActionHash>(
             &alice_cell.zome("identity_coordinator"),
             "create_review",
             CreateReviewInput {
