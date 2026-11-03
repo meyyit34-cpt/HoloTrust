@@ -8,8 +8,10 @@ use identity_integrity::{AgentProfile, AgentType, ReputationReview};
 use std::path::PathBuf;
 
 #[tokio::test(flavor = "multi_thread")]
-async fn two_agents_share_profiles_and_cannot_modify_each_others_data() {
-    let dna_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../workdir/holotrust.dna");
+async fn multi_agent_identity_and_reputation_security() {
+    // Load the packaged DNA only once.
+    let dna_path =
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../workdir/holotrust.dna");
 
     assert!(
         dna_path.exists(),
@@ -21,7 +23,8 @@ async fn two_agents_share_profiles_and_cannot_modify_each_others_data() {
         .await
         .expect("Could not load DNA");
 
-    let mut conductors = SweetConductorBatch::standard(2).await;
+    // Reuse one three-agent network for all scenarios.
+    let mut conductors = SweetConductorBatch::standard(3).await;
 
     let apps = conductors
         .setup_app("holotrust", &[dna_file])
@@ -30,7 +33,9 @@ async fn two_agents_share_profiles_and_cannot_modify_each_others_data() {
 
     let alice_cell = apps[0].cells()[0].clone();
     let bob_cell = apps[1].cells()[0].clone();
+    let carol_cell = apps[2].cells()[0].clone();
 
+    // 1. Alice creates a profile.
     let alice_profile_hash: ActionHash = conductors[0]
         .call_fallible::<_, ActionHash>(
             &alice_cell.zome("identity_coordinator"),
@@ -44,10 +49,11 @@ async fn two_agents_share_profiles_and_cannot_modify_each_others_data() {
         .await
         .expect("Alice profile creation failed");
 
-    await_consistency(&[alice_cell.clone(), bob_cell.clone()])
+    await_consistency(&[alice_cell.clone(), bob_cell.clone(), carol_cell.clone()])
         .await
-        .expect("DHT consistency failed");
+        .expect("Profile DHT consistency failed");
 
+    // 2. Bob must be able to discover Alice's profile.
     let shared_profile: Option<Record> = conductors[1]
         .call_fallible::<_, Option<Record>>(
             &bob_cell.zome("identity_coordinator"),
@@ -57,18 +63,19 @@ async fn two_agents_share_profiles_and_cannot_modify_each_others_data() {
             },
         )
         .await
-        .expect("Could not retrieve Alice profile");
+        .expect("Could not retrieve Alice's profile");
 
-    let shared_profile = shared_profile.expect("Alice profile not shared");
+    let shared_profile = shared_profile.expect("Alice's profile was not shared");
 
     let profile = shared_profile
         .entry()
         .to_app_option::<AgentProfile>()
-        .expect("Could not decode Alice profile")
-        .expect("Alice profile entry missing");
+        .expect("Could not decode Alice's profile")
+        .expect("Alice's profile entry is missing");
 
     assert_eq!(profile.display_name, "Alice");
 
+    // 3. Bob must not be allowed to modify Alice's profile.
     let unauthorized_update = conductors[1]
         .call_fallible::<_, ActionHash>(
             &bob_cell.zome("identity_coordinator"),
@@ -87,6 +94,7 @@ async fn two_agents_share_profiles_and_cannot_modify_each_others_data() {
         "Bob must not modify Alice's profile"
     );
 
+    // Verify that Alice's original profile remains unchanged.
     let unchanged_profile: Option<Record> = conductors[0]
         .call_fallible::<_, Option<Record>>(
             &alice_cell.zome("identity_coordinator"),
@@ -96,48 +104,23 @@ async fn two_agents_share_profiles_and_cannot_modify_each_others_data() {
             },
         )
         .await
-        .expect("Could not retrieve Alice's profile after update attempt");
+        .expect("Could not retrieve Alice's profile after unauthorized update");
 
     let unchanged_profile =
-        unchanged_profile.expect("Alice profile disappeared after unauthorized update");
+        unchanged_profile.expect("Alice's profile disappeared after unauthorized update");
 
     let profile = unchanged_profile
         .entry()
         .to_app_option::<AgentProfile>()
-        .expect("Could not decode Alice profile")
-        .expect("Alice profile entry missing");
+        .expect("Could not decode Alice's profile")
+        .expect("Alice's profile entry is missing");
 
     assert_eq!(
         profile.display_name, "Alice",
         "Unauthorized update changed Alice's profile"
     );
-}
 
-#[tokio::test(flavor = "multi_thread")]
-async fn independent_agents_can_review_same_subject() {
-    let dna_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../workdir/holotrust.dna");
-
-    assert!(
-        dna_path.exists(),
-        "Packaged DNA not found: {}",
-        dna_path.display()
-    );
-
-    let dna_file = SweetDnaFile::from_bundle(&dna_path)
-        .await
-        .expect("Could not load DNA");
-
-    let mut conductors = SweetConductorBatch::standard(3).await;
-
-    let apps = conductors
-        .setup_app("holotrust", &[dna_file])
-        .await
-        .expect("Could not set up apps");
-
-    let alice_cell = apps[0].cells()[0].clone();
-    let bob_cell = apps[1].cells()[0].clone();
-    let carol_cell = apps[2].cells()[0].clone();
-
+    // 4. Bob and Carol independently review Alice.
     let bob_review_hash: ActionHash = conductors[1]
         .call_fallible::<_, ActionHash>(
             &bob_cell.zome("identity_coordinator"),
@@ -149,7 +132,7 @@ async fn independent_agents_can_review_same_subject() {
             },
         )
         .await
-        .expect("Bob review creation failed");
+        .expect("Bob's review creation failed");
 
     let carol_review_hash: ActionHash = conductors[2]
         .call_fallible::<_, ActionHash>(
@@ -162,12 +145,13 @@ async fn independent_agents_can_review_same_subject() {
             },
         )
         .await
-        .expect("Carol review creation failed");
+        .expect("Carol's review creation failed");
 
     await_consistency(&[alice_cell.clone(), bob_cell.clone(), carol_cell.clone()])
         .await
-        .expect("DHT consistency failed");
+        .expect("Review DHT consistency failed");
 
+    // 5. Alice must discover both independent reviews.
     let reviews: Vec<Record> = conductors[0]
         .call_fallible::<_, Vec<Record>>(
             &alice_cell.zome("identity_coordinator"),
@@ -179,7 +163,7 @@ async fn independent_agents_can_review_same_subject() {
         .await
         .expect("Could not retrieve reviews");
 
-    assert_eq!(reviews.len(), 2, "Expected two independent reviews");
+    assert_eq!(reviews.len(), 2, "Expected exactly two independent reviews");
 
     let review_hashes: Vec<ActionHash> = reviews
         .iter()
@@ -194,11 +178,16 @@ async fn independent_agents_can_review_same_subject() {
             .entry()
             .to_app_option::<ReputationReview>()
             .expect("Could not decode review")
-            .expect("Review entry missing");
+            .expect("Review entry is missing");
 
-        assert_eq!(review.subject_agent, alice_cell.agent_pubkey().clone());
+        assert_eq!(
+            review.subject_agent,
+            alice_cell.agent_pubkey().clone(),
+            "Review subject does not match Alice"
+        );
     }
 
+    // 6. Bob must not be able to submit a duplicate review.
     let duplicate_review = conductors[1]
         .call_fallible::<_, ActionHash>(
             &bob_cell.zome("identity_coordinator"),
@@ -216,6 +205,7 @@ async fn independent_agents_can_review_same_subject() {
         "Duplicate review should be rejected"
     );
 
+    // 7. Alice must not be able to review herself.
     let self_review = conductors[0]
         .call_fallible::<_, ActionHash>(
             &alice_cell.zome("identity_coordinator"),
@@ -230,6 +220,7 @@ async fn independent_agents_can_review_same_subject() {
 
     assert!(self_review.is_err(), "Self-review must be rejected");
 
+    // 8. Reputation summary must reflect both valid reviews.
     let summary: ReputationSummary = conductors[0]
         .call_fallible::<_, ReputationSummary>(
             &alice_cell.zome("identity_coordinator"),
