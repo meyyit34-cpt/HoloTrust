@@ -149,18 +149,51 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
             "Published reputation reviews cannot be edited".into(),
         )),
 
-        FlatOp::Link(OpLink::CreateLink {
-            link_type: LinkTypes::AgentToProfile,
-            action,
-        }) => {
-            let owner = action.base_address.clone().into_agent_pub_key();
-            let target = action.target_address.clone().into_action_hash();
+        
+FlatOp::Link(OpLink::CreateLink {
+    link_type: LinkTypes::AgentToProfile,
+    action,
+}) => {
+    let Some(owner) = action.base_address.clone().into_agent_pub_key() else {
+        return Ok(ValidateCallbackResult::Invalid(
+            "Profile link base must be an agent".into(),
+        ));
+    };
 
-            if owner.as_ref() == Some(action.author()) && target.is_some() {
-                Ok(ValidateCallbackResult::Valid)
-            } else {
-                Ok(ValidateCallbackResult::Invalid(
-                    "Profile links must be created by their owning agent".into(),
+    if &owner != action.author() {
+        return Ok(ValidateCallbackResult::Invalid(
+            "Profile links must be created by their owning agent".into(),
+        ));
+    }
+
+    let Some(target) = action.target_address.clone().into_action_hash() else {
+        return Ok(ValidateCallbackResult::Invalid(
+            "Profile link target must be an action hash".into(),
+        ));
+    };
+
+    let record = must_get_valid_record(target)?;
+
+    if record.action().author() != &owner {
+        return Ok(ValidateCallbackResult::Invalid(
+            "Profile link owner must match profile author".into(),
+        ));
+    }
+
+    let profile = record
+        .entry()
+        .to_app_option::<AgentProfile>()
+        .map_err(|e| wasm_error!(WasmErrorInner::Guest(e.to_string())))?;
+
+    if profile.is_none() {
+        return Ok(ValidateCallbackResult::Invalid(
+            "Profile link target must contain an agent profile".into(),
+        ));
+    }
+
+    Ok(ValidateCallbackResult::Valid)
+}
+
                 ))
             }
         }
