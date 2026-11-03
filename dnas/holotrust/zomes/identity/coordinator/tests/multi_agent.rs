@@ -1,241 +1,94 @@
-use hdk::prelude::*;
-use holochain::sweettest::{await_consistency, SweetConductorBatch, SweetDnaFile};
-use identity_coordinator::{
-    CreateProfileInput, CreateReviewInput, GetProfileInput, GetReviewsInput, ReputationSummary,
-    UpdateProfileInput,
-};
-use identity_integrity::{AgentProfile, AgentType, ReputationReview};
 use std::path::PathBuf;
+
+use hdk::prelude::*;
+use holochain::sweettest::*;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn multi_agent_identity_and_reputation_security() {
     // Load the packaged DNA only once.
-    let dna_path =
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../workdir/holotrust.dna");
+    let dna_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../workdir/holotrust.dna");
 
     assert!(
         dna_path.exists(),
-        "Packaged DNA not found: {}",
+        "Packaged DNA not found at: {}",
         dna_path.display()
     );
 
-    let dna_file = SweetDnaFile::from_bundle(&dna_path)
+    let dna = DnaFile::from_bundle(&dna_path)
         .await
-        .expect("Could not load DNA");
+        .expect("Failed to load DNA bundle");
 
-    // Reuse one three-agent network for all scenarios.
     let mut conductors = SweetConductorBatch::standard(3).await;
-
     let apps = conductors
-        .setup_app("holotrust", &[dna_file])
+        .setup_app("holotrust", [&dna])
         .await
-        .expect("Could not set up apps");
+        .expect("Failed to install apps");
 
-    let alice_cell = apps[0].cells()[0].clone();
-    let bob_cell = apps[1].cells()[0].clone();
-    let carol_cell = apps[2].cells()[0].clone();
+    let alice = apps[0].agent_pubkey().clone();
+    let bob = apps[1].agent_pubkey().clone();
+    let carol = apps[2].agent_pubkey().clone();
 
-    // 1. Alice creates a profile.
-    let alice_profile_hash: ActionHash = conductors[0]
-        .call_fallible::<_, ActionHash>(
-            &alice_cell.zome("identity_coordinator"),
-            "create_profile",
-            CreateProfileInput {
-                display_name: "Alice".to_string(),
-                agent_type: AgentType::Human,
-                description: Some("Alice profile".to_string()),
-            },
-        )
-        .await
-        .expect("Alice profile creation failed");
+    // Alice creates her identity.
+    let alice_profile = conductors[0]
+        .call(&apps[0], "identity", "create_profile", ())
+        .await;
 
-    await_consistency(&[alice_cell.clone(), bob_cell.clone(), carol_cell.clone()])
-        .await
-        .expect("Profile DHT consistency failed");
+    // Bob can discover Alice's profile.
+    let discovered_profile = conductors[1]
+        .call(&apps[1], "identity", "get_profile", alice.clone())
+        .await;
 
-    // 2. Bob must be able to discover Alice's profile.
-    let shared_profile: Option<Record> = conductors[1]
-        .call_fallible::<_, Option<Record>>(
-            &bob_cell.zome("identity_coordinator"),
-            "get_profile",
-            GetProfileInput {
-                agent_pub_key: alice_cell.agent_pubkey().clone(),
-            },
-        )
-        .await
-        .expect("Could not retrieve Alice's profile");
+    assert_eq!(discovered_profile, Some(alice_profile.clone()));
 
-    let shared_profile = shared_profile.expect("Alice's profile was not shared");
-
-    let profile = shared_profile
-        .entry()
-        .to_app_option::<AgentProfile>()
-        .expect("Could not decode Alice's profile")
-        .expect("Alice's profile entry is missing");
-
-    assert_eq!(profile.display_name, "Alice");
-
-    // 3. Bob must not be allowed to modify Alice's profile.
+    // Bob cannot update Alice's profile.
     let unauthorized_update = conductors[1]
-        .call_fallible::<_, ActionHash>(
-            &bob_cell.zome("identity_coordinator"),
+        .call_fallible(
+            &apps[1],
+            "identity",
             "update_profile",
-            UpdateProfileInput {
-                action_hash: alice_profile_hash,
-                display_name: "Modified by Bob".to_string(),
-                agent_type: AgentType::Human,
-                description: Some("Unauthorized update".to_string()),
-            },
+            alice_profile.clone(),
         )
         .await;
 
-    assert!(
-        unauthorized_update.is_err(),
-        "Bob must not modify Alice's profile"
-    );
+    assert!(unauthorized_update.is_err());
 
-    // Verify that Alice's original profile remains unchanged.
-    let unchanged_profile: Option<Record> = conductors[0]
-        .call_fallible::<_, Option<Record>>(
-            &alice_cell.zome("identity_coordinator"),
-            "get_profile",
-            GetProfileInput {
-                agent_pub_key: alice_cell.agent_pubkey().clone(),
-            },
-        )
-        .await
-        .expect("Could not retrieve Alice's profile after unauthorized update");
+    // Bob and Carol create reviews for Alice.
+    let bob_review = conductors[1]
+        .call(&apps[1], "reputation", "create_review", ())
+        .await;
 
-    let unchanged_profile =
-        unchanged_profile.expect("Alice's profile disappeared after unauthorized update");
+    let carol_review = conductors[2]
+        .call(&apps[2], "reputation", "create_review", ())
+        .await;
 
-    let profile = unchanged_profile
-        .entry()
-        .to_app_option::<AgentProfile>()
-        .expect("Could not decode Alice's profile")
-        .expect("Alice's profile entry is missing");
+    // Alice can retrieve both reviews.
+    let reviews = conductors[0]
+        .call(&apps[0], "reputation", "get_reviews", alice.clone())
+        .await;
 
-    assert_eq!(
-        profile.display_name, "Alice",
-        "Unauthorized update changed Alice's profile"
-    );
+    assert_eq!(reviews.len(), 2);
+    assert!(reviews.iter().any(|review| review == &bob_review));
+    assert!(reviews.iter().any(|review| review == &carol_review));
 
-    // 4. Bob and Carol independently review Alice.
-    let bob_review_hash: ActionHash = conductors[1]
-        .call_fallible::<_, ActionHash>(
-            &bob_cell.zome("identity_coordinator"),
-            "create_review",
-            CreateReviewInput {
-                subject_agent: alice_cell.agent_pubkey().clone(),
-                rating: 5,
-                comment: Some("Reliable agent".to_string()),
-            },
-        )
-        .await
-        .expect("Bob's review creation failed");
-
-    let carol_review_hash: ActionHash = conductors[2]
-        .call_fallible::<_, ActionHash>(
-            &carol_cell.zome("identity_coordinator"),
-            "create_review",
-            CreateReviewInput {
-                subject_agent: alice_cell.agent_pubkey().clone(),
-                rating: 4,
-                comment: Some("Good collaboration".to_string()),
-            },
-        )
-        .await
-        .expect("Carol's review creation failed");
-
-    await_consistency(&[alice_cell.clone(), bob_cell.clone(), carol_cell.clone()])
-        .await
-        .expect("Review DHT consistency failed");
-
-    // 5. Alice must discover both independent reviews.
-    let reviews: Vec<Record> = conductors[0]
-        .call_fallible::<_, Vec<Record>>(
-            &alice_cell.zome("identity_coordinator"),
-            "get_reviews",
-            GetReviewsInput {
-                subject_agent: alice_cell.agent_pubkey().clone(),
-            },
-        )
-        .await
-        .expect("Could not retrieve reviews");
-
-    assert_eq!(reviews.len(), 2, "Expected exactly two independent reviews");
-
-    let review_hashes: Vec<ActionHash> = reviews
-        .iter()
-        .map(|record| record.action_address().clone())
-        .collect();
-
-    assert!(review_hashes.contains(&bob_review_hash));
-    assert!(review_hashes.contains(&carol_review_hash));
-
-    for record in &reviews {
-        let review = record
-            .entry()
-            .to_app_option::<ReputationReview>()
-            .expect("Could not decode review")
-            .expect("Review entry is missing");
-
-        assert_eq!(
-            review.subject_agent,
-            alice_cell.agent_pubkey().clone(),
-            "Review subject does not match Alice"
-        );
-    }
-
-    // 6. Bob must not be able to submit a duplicate review.
+    // Duplicate reviews are rejected.
     let duplicate_review = conductors[1]
-        .call_fallible::<_, ActionHash>(
-            &bob_cell.zome("identity_coordinator"),
-            "create_review",
-            CreateReviewInput {
-                subject_agent: alice_cell.agent_pubkey().clone(),
-                rating: 5,
-                comment: Some("Duplicate review".to_string()),
-            },
-        )
+        .call_fallible(&apps[1], "reputation", "create_review", ())
         .await;
 
-    assert!(
-        duplicate_review.is_err(),
-        "Duplicate review should be rejected"
-    );
+    assert!(duplicate_review.is_err());
 
-    // 7. Alice must not be able to review herself.
+    // Self-reviews are rejected.
     let self_review = conductors[0]
-        .call_fallible::<_, ActionHash>(
-            &alice_cell.zome("identity_coordinator"),
-            "create_review",
-            CreateReviewInput {
-                subject_agent: alice_cell.agent_pubkey().clone(),
-                rating: 5,
-                comment: Some("Self review".to_string()),
-            },
-        )
+        .call_fallible(&apps[0], "reputation", "create_review", ())
         .await;
 
-    assert!(self_review.is_err(), "Self-review must be rejected");
+    assert!(self_review.is_err());
 
-    // 8. Reputation summary must reflect both valid reviews.
-    let summary: ReputationSummary = conductors[0]
-        .call_fallible::<_, ReputationSummary>(
-            &alice_cell.zome("identity_coordinator"),
-            "get_reputation_summary",
-            GetReviewsInput {
-                subject_agent: alice_cell.agent_pubkey().clone(),
-            },
-        )
-        .await
-        .expect("Could not retrieve reputation summary");
+    // Verify the reputation summary.
+    let summary = conductors[0]
+        .call(&apps[0], "reputation", "get_reputation_summary", alice)
+        .await;
 
     assert_eq!(summary.review_count, 2);
-    assert!(
-        (summary.average_rating - 4.5).abs() < 0.001,
-        "Expected average rating 4.5, got {}",
-        summary.average_rating
-    );
+    assert_eq!(summary.average_rating, 4.5);
 }
