@@ -125,10 +125,12 @@ async fn multi_agent_identity_and_reputation_security() {
         .await;
 
     assert_eq!(reviews.len(), 2);
-
-    assert!(reviews.iter().any(|review| review.action().author() == &bob));
-
-    assert!(reviews.iter().any(|review| review.action().author() == &carol));
+    assert!(reviews
+        .iter()
+        .any(|review| review.action().author() == &bob));
+    assert!(reviews
+        .iter()
+        .any(|review| review.action().author() == &carol));
 
     let duplicate_review: Result<ActionHash, _> = conductors[1]
         .sweet_handle()
