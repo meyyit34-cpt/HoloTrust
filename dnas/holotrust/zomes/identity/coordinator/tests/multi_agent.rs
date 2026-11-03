@@ -1,18 +1,16 @@
+
 use hdk::prelude::*;
-use holochain::sweettest::{
-    await_consistency, SweetConductorBatch, SweetDnaFile,
-};
+use holochain::sweettest::{await_consistency, SweetConductorBatch, SweetDnaFile};
 use identity_coordinator::{
-    CreateProfileInput, CreateReviewInput, GetProfileInput,
-    GetReviewsInput, ReputationSummary, UpdateProfileInput,
+    CreateProfileInput, CreateReviewInput, GetProfileInput, GetReviewsInput, ReputationSummary,
+    UpdateProfileInput,
 };
 use identity_integrity::{AgentProfile, AgentType, ReputationReview};
 use std::path::PathBuf;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn two_agents_share_profiles_and_cannot_modify_each_others_data() {
-    let dna_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../../workdir/holotrust.dna");
+    let dna_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../workdir/holotrust.dna");
 
     assert!(
         dna_path.exists(),
@@ -101,8 +99,8 @@ async fn two_agents_share_profiles_and_cannot_modify_each_others_data() {
         .await
         .expect("Could not retrieve Alice's profile after update attempt");
 
-    let unchanged_profile = unchanged_profile
-        .expect("Alice profile disappeared after unauthorized update");
+    let unchanged_profile =
+        unchanged_profile.expect("Alice profile disappeared after unauthorized update");
 
     let profile = unchanged_profile
         .entry()
@@ -111,16 +109,14 @@ async fn two_agents_share_profiles_and_cannot_modify_each_others_data() {
         .expect("Alice profile entry missing");
 
     assert_eq!(
-        profile.display_name,
-        "Alice",
+        profile.display_name, "Alice",
         "Unauthorized update changed Alice's profile"
     );
 }
 
 #[tokio::test(flavor = "multi_thread")]
 async fn independent_agents_can_review_same_subject() {
-    let dna_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../../workdir/holotrust.dna");
+    let dna_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../workdir/holotrust.dna");
 
     assert!(
         dna_path.exists(),
@@ -135,10 +131,7 @@ async fn independent_agents_can_review_same_subject() {
     let mut conductors = SweetConductorBatch::standard(3).await;
 
     let apps = conductors
-        .setup_app(
-            "holotrust",
-            &[dna_file.clone(), dna_file.clone(), dna_file],
-        )
+        .setup_app("holotrust", &[dna_file.clone(), dna_file.clone(), dna_file])
         .await
         .expect("Could not set up apps");
 
@@ -172,13 +165,9 @@ async fn independent_agents_can_review_same_subject() {
         .await
         .expect("Carol review creation failed");
 
-    await_consistency(&[
-        alice_cell.clone(),
-        bob_cell.clone(),
-        carol_cell.clone(),
-    ])
-    .await
-    .expect("DHT consistency failed");
+    await_consistency(&[alice_cell.clone(), bob_cell.clone(), carol_cell.clone()])
+        .await
+        .expect("DHT consistency failed");
 
     let reviews: Vec<Record> = conductors[0]
         .call(
@@ -208,10 +197,7 @@ async fn independent_agents_can_review_same_subject() {
             .expect("Could not decode review")
             .expect("Review entry missing");
 
-        assert_eq!(
-            review.subject_agent,
-            alice_cell.agent_pubkey().clone()
-        );
+        assert_eq!(review.subject_agent, alice_cell.agent_pubkey().clone());
     }
 
     let duplicate_review = conductors[1]
@@ -243,10 +229,7 @@ async fn independent_agents_can_review_same_subject() {
         )
         .await;
 
-    assert!(
-        self_review.is_err(),
-        "Self-review must be rejected"
-    );
+    assert!(self_review.is_err(), "Self-review must be rejected");
 
     let summary: ReputationSummary = conductors[0]
         .call(
