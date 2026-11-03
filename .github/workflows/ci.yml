@@ -1,3 +1,4 @@
+
 name: HoloTrust CI
 
 on:
@@ -6,10 +7,36 @@ on:
       - main
       - security/review-integrity
   pull_request:
+  workflow_dispatch:
+
+# Yeni commit geldiğinde eski çalışmayı iptal et.
+concurrency:
+  group: holotrust-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
 
 jobs:
-  test-and-package:
-    name: Test, build and package HoloTrust
+  format:
+    name: Fast formatting checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Install Rust formatter
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+
+  build-test-package:
+    name: Build, test and package HoloTrust
     runs-on: ubuntu-latest
     timeout-minutes: 100
 
@@ -18,16 +45,15 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
         with:
-          components: rustfmt
           targets: wasm32-unknown-unknown
 
-      - name: Cache Cargo
-        uses: actions/cache@v4
+      - name: Cache Cargo dependencies and build outputs
+        uses: actions/cache@v6
         with:
           path: |
             ~/.cargo/registry
@@ -36,9 +62,6 @@ jobs:
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
             ${{ runner.os }}-cargo-
-
-      - name: Check formatting
-        run: cargo fmt --all -- --check
 
       - name: Build zomes for WASM
         run: cargo build --workspace --release --target wasm32-unknown-unknown
@@ -72,7 +95,7 @@ jobs:
         run: cargo test --workspace
 
       - name: Upload hApp bundle
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: holotrust-happ
           path: dnas/holotrust/workdir/holotrust.happ
