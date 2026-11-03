@@ -5,7 +5,8 @@ use std::path::PathBuf;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn two_agents_share_profiles_and_cannot_modify_each_others_data() {
-    let dna_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../workdir/holotrust.dna");
+    let dna_path =
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../workdir/holotrust.dna");
 
     assert!(
         dna_path.exists(),
@@ -88,7 +89,27 @@ async fn two_agents_share_profiles_and_cannot_modify_each_others_data() {
         "SECURITY FAILURE: Bob modified Alice's profile"
     );
 
-    let original_profile: Option<Record> = conductors[0].call(&alice, "get_my_profile", ()).await;
+    // An invalid profile update must be rejected.
+    let invalid_profile_update = conductors[0]
+        .call_fallible::<_, ActionHash>(
+            &alice,
+            "update_profile",
+            identity_coordinator::UpdateProfileInput {
+                action_hash: profile_hash.clone(),
+                display_name: "   ".into(),
+                agent_type: AgentType::Human,
+                description: None,
+            },
+        )
+        .await;
+
+    assert!(
+        invalid_profile_update.is_err(),
+        "SECURITY FAILURE: an empty profile name was accepted"
+    );
+
+    let original_profile: Option<Record> =
+        conductors[0].call(&alice, "get_my_profile", ()).await;
 
     let original_profile = original_profile.expect("Alice's profile disappeared");
 
@@ -145,7 +166,7 @@ async fn two_agents_share_profiles_and_cannot_modify_each_others_data() {
     assert_eq!(decoded_review.rating, 5);
     assert_eq!(decoded_review.comment.as_deref(), Some("Reliable agent"));
 
-    // Alice's reputation summary reflects the review.
+    // Alice's reputation summary reflects the valid review.
     let summary: identity_coordinator::ReputationSummary = conductors[0]
         .call(
             &alice,
@@ -215,6 +236,24 @@ async fn two_agents_share_profiles_and_cannot_modify_each_others_data() {
             invalid_rating
         );
     }
+
+    // Control characters in review comments must be rejected.
+    let invalid_comment = conductors[0]
+        .call_fallible::<_, ActionHash>(
+            &alice,
+            "create_review",
+            identity_coordinator::CreateReviewInput {
+                subject_agent: bob_cell.agent_pubkey().clone(),
+                rating: 4,
+                comment: Some("Invalid\ncomment".into()),
+            },
+        )
+        .await;
+
+    assert!(
+        invalid_comment.is_err(),
+        "SECURITY FAILURE: a review with control characters was accepted"
+    );
 
     await_consistency(&[alice_cell, bob_cell])
         .await
