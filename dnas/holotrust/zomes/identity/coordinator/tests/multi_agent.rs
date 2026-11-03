@@ -1,9 +1,9 @@
+
 use std::path::PathBuf;
 
 use holochain::sweettest::*;
 use identity_coordinator::{
-    CreateProfileInput, CreateReviewInput, GetProfileInput, GetReviewsInput,
-    UpdateProfileInput,
+    CreateProfileInput, CreateReviewInput, GetProfileInput, GetReviewsInput, UpdateProfileInput,
 };
 use identity_integrity::AgentType;
 
@@ -39,7 +39,6 @@ async fn multi_agent_identity_and_reputation_security() {
     let bob_zome = apps[1].cells()[0].zome("identity_coordinator");
     let carol_zome = apps[2].cells()[0].zome("identity_coordinator");
 
-    // Alice creates her profile.
     let alice_profile = conductors[0]
         .sweet_handle()
         .call(
@@ -53,7 +52,6 @@ async fn multi_agent_identity_and_reputation_security() {
         )
         .await;
 
-    // Bob discovers Alice's profile.
     let discovered_profile = conductors[1]
         .sweet_handle()
         .call(
@@ -66,13 +64,8 @@ async fn multi_agent_identity_and_reputation_security() {
         .await;
 
     assert!(discovered_profile.is_some());
+    assert_eq!(discovered_profile.unwrap().action().author(), &alice);
 
-    assert_eq!(
-        discovered_profile.unwrap().action().author(),
-        &alice
-    );
-
-    // Bob cannot update Alice's profile.
     let unauthorized_update = conductors[1]
         .sweet_handle()
         .call_fallible(
@@ -89,7 +82,6 @@ async fn multi_agent_identity_and_reputation_security() {
 
     assert!(unauthorized_update.is_err());
 
-    // Bob creates a review for Alice.
     let bob_review_input = CreateReviewInput {
         subject_agent: alice.clone(),
         rating: 5,
@@ -98,14 +90,9 @@ async fn multi_agent_identity_and_reputation_security() {
 
     conductors[1]
         .sweet_handle()
-        .call(
-            &bob_zome,
-            "create_review",
-            bob_review_input,
-        )
+        .call(&bob_zome, "create_review", bob_review_input)
         .await;
 
-    // Carol creates a review for Alice.
     conductors[2]
         .sweet_handle()
         .call(
@@ -119,14 +106,10 @@ async fn multi_agent_identity_and_reputation_security() {
         )
         .await;
 
-    // Wait until all three agents have integrated the published data.
-    await_consistency(
-        apps.iter().flat_map(|app| app.cells().iter())
-    )
-    .await
-    .expect("Agents did not reach DHT consistency");
+    await_consistency(apps.iter().flat_map(|app| app.cells().iter()))
+        .await
+        .expect("Agents did not reach DHT consistency");
 
-    // Alice retrieves both reviews.
     let reviews = conductors[0]
         .sweet_handle()
         .call(
@@ -139,28 +122,16 @@ async fn multi_agent_identity_and_reputation_security() {
         .await;
 
     assert_eq!(reviews.len(), 2);
+    assert!(reviews.iter().any(|review| review.action().author() == &bob));
+    assert!(reviews.iter().any(|review| review.action().author() == &carol));
 
-    assert!(reviews.iter().any(|review| {
-        review.action().author() == &bob
-    }));
-
-    assert!(reviews.iter().any(|review| {
-        review.action().author() == &carol
-    }));
-
-    // Bob cannot submit a duplicate review.
     let duplicate_review = conductors[1]
         .sweet_handle()
-        .call_fallible(
-            &bob_zome,
-            "create_review",
-            bob_review_input,
-        )
+        .call_fallible(&bob_zome, "create_review", bob_review_input)
         .await;
 
     assert!(duplicate_review.is_err());
 
-    // Alice cannot review herself.
     let self_review = conductors[0]
         .sweet_handle()
         .call_fallible(
@@ -176,15 +147,12 @@ async fn multi_agent_identity_and_reputation_security() {
 
     assert!(self_review.is_err());
 
-    // Verify reputation summary.
     let summary = conductors[0]
         .sweet_handle()
         .call(
             &alice_zome,
             "get_reputation_summary",
-            GetReviewsInput {
-                subject_agent: alice,
-            },
+            GetReviewsInput { subject_agent: alice },
         )
         .await;
 
