@@ -1,4 +1,3 @@
-
 use holochain::prelude::{ActionHash, Record};
 use holochain::sweettest::*;
 use identity_coordinator::{
@@ -127,7 +126,9 @@ async fn multi_agent_identity_and_reputation_security() {
 
     assert_eq!(reviews.len(), 2);
 
-    assert!(reviews.iter().any(|review| review.action().author() == &bob));
+    assert!(reviews
+        .iter()
+        .any(|review| review.action().author() == &bob));
 
     assert!(reviews
         .iter()
