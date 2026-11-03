@@ -88,7 +88,7 @@ async fn two_agents_share_profiles_and_cannot_modify_each_others_data() {
     );
 
     let unchanged_profile: Option<Record> = conductors[0]
-        .call(
+        .call_fallible::<_, Option<Record>>(
             &alice_cell.zome("identity_coordinator"),
             "get_profile",
             GetProfileInput {
@@ -231,7 +231,7 @@ async fn independent_agents_can_review_same_subject() {
     assert!(self_review.is_err(), "Self-review must be rejected");
 
     let summary: ReputationSummary = conductors[0]
-        .call(
+        .call_fallible::<_, ReputationSummary>(
             &alice_cell.zome("identity_coordinator"),
             "get_reputation_summary",
             GetReviewsInput {
