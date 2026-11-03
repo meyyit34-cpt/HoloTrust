@@ -5,8 +5,7 @@ use std::path::PathBuf;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn two_agents_share_profiles_and_cannot_modify_each_others_data() {
-    let dna_path =
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../workdir/holotrust.dna");
+    let dna_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../workdir/holotrust.dna");
 
     assert!(
         dna_path.exists(),
@@ -108,8 +107,7 @@ async fn two_agents_share_profiles_and_cannot_modify_each_others_data() {
         "SECURITY FAILURE: an empty profile name was accepted"
     );
 
-    let original_profile: Option<Record> =
-        conductors[0].call(&alice, "get_my_profile", ()).await;
+    let original_profile: Option<Record> = conductors[0].call(&alice, "get_my_profile", ()).await;
 
     let original_profile = original_profile.expect("Alice's profile disappeared");
 
