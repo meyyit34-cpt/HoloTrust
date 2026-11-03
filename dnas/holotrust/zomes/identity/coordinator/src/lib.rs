@@ -165,8 +165,8 @@ pub fn update_profile(input: UpdateProfileInput) -> ExternResult<ActionHash> {
 
     let updated_hash = update_entry(input.action_hash, &EntryTypes::AgentProfile(profile))?;
 
-    let links = get_links(
-        LinkQuery::try_new(agent, LinkTypes::AgentToProfile)?,
+        let links = get_links(
+        LinkQuery::try_new(input.agent_pub_key.clone(), LinkTypes::AgentToProfile)?,
         GetStrategy::default(),
     )?;
 
