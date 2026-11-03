@@ -1,5 +1,8 @@
 use hdk::prelude::*;
-use identity_integrity::{AgentProfile, AgentType, EntryTypes, LinkTypes, ReputationReview};
+use identity_integrity::{
+    validate_profile, validate_review, AgentProfile, AgentType, EntryTypes, LinkTypes,
+    ReputationReview,
+};
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct CreateProfileInput {
@@ -79,11 +82,15 @@ pub fn get_my_profile(_: ()) -> ExternResult<Option<Record>> {
     let agent = agent_info()?.agent_initial_pubkey;
 
     let links = get_links(
-        LinkQuery::try_new(agent, LinkTypes::AgentToProfile)?,
+        LinkQuery::try_new(agent.clone(), LinkTypes::AgentToProfile)?,
         GetStrategy::default(),
     )?;
 
     for link in links.into_iter().rev() {
+        if link.author != agent {
+            continue;
+        }
+
         let Some(action_hash) = link.target.into_action_hash() else {
             continue;
         };
@@ -92,14 +99,20 @@ pub fn get_my_profile(_: ()) -> ExternResult<Option<Record>> {
             continue;
         };
 
-        if record
-            .entry()
-            .to_app_option::<AgentProfile>()
-            .map_err(|e| wasm_error!(WasmErrorInner::Guest(e.to_string())))?
-            .is_some()
-        {
-            return Ok(Some(record));
+        if record.action().author() != &agent {
+            continue;
         }
+
+        let profile = match record.entry().to_app_option::<AgentProfile>() {
+            Ok(Some(profile)) => profile,
+            _ => continue,
+        };
+
+        if validate_profile(&profile).is_err() {
+            continue;
+        }
+
+        return Ok(Some(record));
     }
 
     Ok(None)
@@ -113,6 +126,10 @@ pub fn get_profile(input: GetProfileInput) -> ExternResult<Option<Record>> {
     )?;
 
     for link in links.into_iter().rev() {
+        if link.author != input.agent_pub_key {
+            continue;
+        }
+
         let Some(action_hash) = link.target.into_action_hash() else {
             continue;
         };
@@ -125,14 +142,16 @@ pub fn get_profile(input: GetProfileInput) -> ExternResult<Option<Record>> {
             continue;
         }
 
-        let profile = record
-            .entry()
-            .to_app_option::<AgentProfile>()
-            .map_err(|e| wasm_error!(WasmErrorInner::Guest(e.to_string())))?;
+        let profile = match record.entry().to_app_option::<AgentProfile>() {
+            Ok(Some(profile)) => profile,
+            _ => continue,
+        };
 
-        if profile.is_some() {
-            return Ok(Some(record));
+        if validate_profile(&profile).is_err() {
+            continue;
         }
+
+        return Ok(Some(record));
     }
 
     Ok(None)
@@ -160,6 +179,9 @@ pub fn update_profile(input: UpdateProfileInput) -> ExternResult<ActionHash> {
 
     let profile = profile_from_input(input.display_name, input.agent_type, input.description);
 
+    validate_profile(&profile)
+        .map_err(|reason| wasm_error!(WasmErrorInner::Guest(reason)))?;
+
     let updated_hash = update_entry(input.action_hash, &EntryTypes::AgentProfile(profile))?;
 
     let links = get_links(
@@ -186,12 +208,26 @@ pub fn create_review(input: CreateReviewInput) -> ExternResult<ActionHash> {
         )));
     }
 
+    let review = ReputationReview {
+        schema_version: 1,
+        subject_agent: input.subject_agent.clone(),
+        rating: input.rating,
+        comment: input.comment,
+    };
+
+    validate_review(&review)
+        .map_err(|reason| wasm_error!(WasmErrorInner::Guest(reason)))?;
+
     let existing_links = get_links(
         LinkQuery::try_new(input.subject_agent.clone(), LinkTypes::AgentToReview)?,
         GetStrategy::default(),
     )?;
 
     for link in existing_links {
+        if link.author != author {
+            continue;
+        }
+
         let Some(existing_hash) = link.target.into_action_hash() else {
             continue;
         };
@@ -204,25 +240,22 @@ pub fn create_review(input: CreateReviewInput) -> ExternResult<ActionHash> {
             continue;
         }
 
-        if let Some(existing_review) = existing_record
+        let existing_review = match existing_record
             .entry()
             .to_app_option::<ReputationReview>()
-            .map_err(|e| wasm_error!(WasmErrorInner::Guest(e.to_string())))?
         {
-            if existing_review.subject_agent == input.subject_agent {
-                return Err(wasm_error!(WasmErrorInner::Guest(
-                    "You have already reviewed this agent".into()
-                )));
-            }
+            Ok(Some(review)) => review,
+            _ => continue,
+        };
+
+        if existing_review.subject_agent == input.subject_agent
+            && validate_review(&existing_review).is_ok()
+        {
+            return Err(wasm_error!(WasmErrorInner::Guest(
+                "You have already reviewed this agent".into()
+            )));
         }
     }
-
-    let review = ReputationReview {
-        schema_version: 1,
-        subject_agent: input.subject_agent.clone(),
-        rating: input.rating,
-        comment: input.comment,
-    };
 
     let review_hash = create_entry(EntryTypes::ReputationReview(review))?;
 
@@ -254,15 +287,32 @@ pub fn get_reviews(input: GetReviewsInput) -> ExternResult<Vec<Record>> {
             continue;
         };
 
-        if let Some(review) = record
-            .entry()
-            .to_app_option::<ReputationReview>()
-            .map_err(|e| wasm_error!(WasmErrorInner::Guest(e.to_string())))?
-        {
-            if review.subject_agent == input.subject_agent {
-                records.push(record);
-            }
+        // The link creator must be the same agent that authored the review.
+        if record.action().author() != &link.author {
+            continue;
         }
+
+        // A reviewer cannot publish a review about itself.
+        if record.action().author() == &input.subject_agent {
+            continue;
+        }
+
+        let review = match record.entry().to_app_option::<ReputationReview>() {
+            Ok(Some(review)) => review,
+            _ => continue,
+        };
+
+        // The indexed subject and the review's actual subject must agree.
+        if review.subject_agent != input.subject_agent {
+            continue;
+        }
+
+        // Re-apply integrity-level content rules when reading DHT data.
+        if validate_review(&review).is_err() {
+            continue;
+        }
+
+        records.push(record);
     }
 
     Ok(records)
@@ -276,14 +326,18 @@ pub fn get_reputation_summary(input: GetReviewsInput) -> ExternResult<Reputation
     let mut review_count: u32 = 0;
 
     for record in records {
-        if let Some(review) = record
-            .entry()
-            .to_app_option::<ReputationReview>()
-            .map_err(|e| wasm_error!(WasmErrorInner::Guest(e.to_string())))?
-        {
-            total_rating += u64::from(review.rating);
-            review_count += 1;
+        let review = match record.entry().to_app_option::<ReputationReview>() {
+            Ok(Some(review)) => review,
+            _ => continue,
+        };
+
+        // Defensive validation: only valid ratings contribute to reputation.
+        if validate_review(&review).is_err() {
+            continue;
         }
+
+        total_rating += u64::from(review.rating);
+        review_count += 1;
     }
 
     let average_rating = if review_count == 0 {
