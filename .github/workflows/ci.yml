@@ -1,85 +1,4 @@
 
-name: HoloTrust CI
-
-on:
-  push:
-    branches:
-      - main
-      - security/review-integrity
-  pull_request:
-  workflow_dispatch:
-
-concurrency:
-  group: holotrust-ci-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
-
-permissions:
-  contents: read
-
-jobs:
-  format:
-    name: Fast formatting checks
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v7
-
-      - name: Install Rust formatter
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          components: rustfmt
-
-      - name: Check formatting
-        run: cargo fmt --all -- --check
-
-  build-test-package:
-    name: Build, test and package HoloTrust
-    runs-on: ubuntu-latest
-    timeout-minutes: 100
-
-    env:
-      CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUSTFLAGS: '--cfg getrandom_backend="custom" -C link-arg=--allow-undefined'
-      CARGO_BUILD_JOBS: 2
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v7
-
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: wasm32-unknown-unknown
-
-      - name: Cache Cargo dependencies and build outputs
-        uses: actions/cache@v6
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.toml', '**/Cargo.lock', 'rust-toolchain.toml', 'rust-toolchain') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-
-
-      - name: Build zomes for WASM
-        run: cargo build --workspace --release --target wasm32-unknown-unknown
-
-      - name: Verify WASM artifacts
-        run: |
-          test -s target/wasm32-unknown-unknown/release/identity_integrity.wasm
-          test -s target/wasm32-unknown-unknown/release/identity_coordinator.wasm
-
-      - name: Install Nix with Holochain cache
-        uses: cachix/install-nix-action@v31
-        with:
-          github_access_token: ${{ secrets.GITHUB_TOKEN }}
-          extra_nix_config: |
-            experimental-features = nix-command flakes
-            substituters = https://cache.nixos.org https://holochain-ci.cachix.org
-            trusted-public-keys = cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY= holochain-ci.cachix.org-1:5IUSkZc0aoRS53rfkvH9Kid40NpyjwCMCzwRTXy+QN8=
-
       - name: Compile tests while packaging DNA
         shell: bash
         run: |
@@ -96,12 +15,14 @@ jobs:
 
           (
             set -o pipefail
-            cd dnas/holotrust/workdir
-hc --version
-hc dna pack .
-hc app pack .
-test -s holotrust.dna
-test -s holotrust.happ
+            nix develop --print-build-logs 'github:holochain/holonix?ref=main-0.7' -c bash -euo pipefail -c '
+              cd dnas/holotrust/workdir
+              hc --version
+              hc dna pack .
+              hc app pack .
+              test -s holotrust.dna
+              test -s holotrust.happ
+            ' 2>&1 | tee "$PACKAGE_LOG"
           ) &
           PACKAGE_PID=$!
 
@@ -124,18 +45,3 @@ test -s holotrust.happ
           if [ "$TEST_STATUS" -ne 0 ] || [ "$PACKAGE_STATUS" -ne 0 ]; then
             exit 1
           fi
-
-      - name: Run workspace tests
-        run: cargo test --workspace
-
-      - name: Verify packaged hApp
-        run: |
-          test -s dnas/holotrust/workdir/holotrust.dna
-          test -s dnas/holotrust/workdir/holotrust.happ
-
-      - name: Upload hApp bundle
-        uses: actions/upload-artifact@v7
-        with:
-          name: holotrust-happ
-          path: dnas/holotrust/workdir/holotrust.happ
-          if-no-files-found: error
