@@ -10,7 +10,7 @@ pub struct CreateProfileInput {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct GetProfileInput {
-    pub action_hash: ActionHash,
+    pub agent_pub_key: AgentPubKey,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -107,20 +107,38 @@ pub fn get_my_profile(_: ()) -> ExternResult<Option<Record>> {
 
 #[hdk_extern]
 pub fn get_profile(input: GetProfileInput) -> ExternResult<Option<Record>> {
-    let Some(record) = get(input.action_hash, GetOptions::default())? else {
-        return Ok(None);
-    };
+    let links = get_links(
+        LinkQuery::try_new(
+            input.agent_pub_key.clone(),
+            LinkTypes::AgentToProfile,
+        )?,
+        GetStrategy::default(),
+    )?;
 
-    if record
-        .entry()
-        .to_app_option::<AgentProfile>()
-        .map_err(|e| wasm_error!(WasmErrorInner::Guest(e.to_string())))?
-        .is_none()
-    {
-        return Ok(None);
+    for link in links.into_iter().rev() {
+        let Some(action_hash) = link.target.into_action_hash() else {
+            continue;
+        };
+
+        let Some(record) = get(action_hash, GetOptions::default())? else {
+            continue;
+        };
+
+        if record.action().author() != &input.agent_pub_key {
+            continue;
+        }
+
+        let profile = record
+            .entry()
+            .to_app_option::<AgentProfile>()
+            .map_err(|e| wasm_error!(WasmErrorInner::Guest(e.to_string())))?;
+
+        if profile.is_some() {
+            return Ok(Some(record));
+        }
     }
 
-    Ok(Some(record))
+    Ok(None)
 }
 
 #[hdk_extern]
