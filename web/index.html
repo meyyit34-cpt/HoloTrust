@@ -6,219 +6,425 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="theme-color" content="#0b1220">
   <meta name="description" content="HoloTrust — Merkeziyetsiz kimlik ve itibar ağı">
-  <title>HoloTrust — Decentralized Identity & Reputation</title>
+
+  <title>HoloTrust | Decentralized Identity & Reputation</title>
+
   <style>
-    * { box-sizing: border-box; }
+    :root {
+      color-scheme: dark;
+      --background: #0b1220;
+      --panel: #111827;
+      --border: #293449;
+      --text: #e8edf7;
+      --muted: #9aa9bd;
+      --accent: #66e3c4;
+      --input: #0b1220;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
     body {
       margin: 0;
       min-height: 100vh;
-      color: #e8edf7;
-      background: #0b1220;
+      color: var(--text);
+      background: var(--background);
       font-family: Inter, system-ui, -apple-system, sans-serif;
     }
+
     header {
-      padding: 24px;
-      border-bottom: 1px solid #293449;
+      padding: 32px 18px;
+      border-bottom: 1px solid var(--border);
       text-align: center;
     }
+
     header h1 {
       margin: 0;
-      color: #66e3c4;
-      letter-spacing: 2px;
+      color: var(--accent);
+      font-size: clamp(28px, 5vw, 42px);
+      letter-spacing: 4px;
     }
-    header p { color: #9aa9bd; }
+
+    header p {
+      margin: 10px 0 0;
+      color: var(--muted);
+    }
+
     main {
       width: min(900px, calc(100% - 28px));
-      margin: 32px auto;
+      margin: 30px auto;
     }
+
     .panel {
       padding: 24px;
       margin-bottom: 22px;
-      background: #111827;
-      border: 1px solid #293449;
+      background: var(--panel);
+      border: 1px solid var(--border);
       border-radius: 16px;
     }
+
+    h2 {
+      margin-top: 0;
+      font-size: 21px;
+    }
+
+    h3 {
+      font-size: 17px;
+    }
+
     label {
       display: block;
-      margin: 14px 0 6px;
+      margin: 16px 0 7px;
       color: #b9c5d8;
+      font-size: 14px;
     }
-    input, textarea, select {
+
+    input,
+    textarea,
+    select {
+      display: block;
       width: 100%;
-      padding: 12px;
+      padding: 13px;
       color: #f8fafc;
-      background: #0b1220;
+      background: var(--input);
       border: 1px solid #34445d;
       border-radius: 8px;
+      font: inherit;
     }
+
+    input:focus,
+    textarea:focus,
+    select:focus {
+      outline: 2px solid var(--accent);
+      outline-offset: 1px;
+    }
+
+    textarea {
+      resize: vertical;
+    }
+
     button {
-      padding: 11px 16px;
-      margin: 8px 5px 8px 0;
+      padding: 12px 17px;
+      margin: 9px 6px 4px 0;
       color: #07111f;
-      background: #66e3c4;
+      background: var(--accent);
       border: 0;
       border-radius: 8px;
       font-weight: 700;
       cursor: pointer;
     }
-    button:disabled { opacity: .5; cursor: wait; }
-    .muted { color: #9aa9bd; font-size: 13px; }
+
+    button:disabled {
+      opacity: .5;
+      cursor: not-allowed;
+    }
+
+    button.secondary {
+      color: var(--text);
+      background: #263449;
+      border: 1px solid #40516b;
+    }
+
+    .type.active {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+    }
+
     .status {
-      padding: 12px;
-      margin-top: 12px;
-      background: #0b1220;
+      padding: 13px;
+      margin-top: 13px;
+      background: var(--input);
+      border: 1px solid var(--border);
       border-radius: 8px;
       overflow-wrap: anywhere;
+      white-space: pre-wrap;
     }
-    .type.active {
-      outline: 2px solid #66e3c4;
+
+    .muted {
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.6;
     }
-    .hidden { display: none; }
+
+    .hidden {
+      display: none !important;
+    }
+
+    .identity-types {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .identity-types button {
+      min-width: 90px;
+    }
+
+    .profile-id {
+      word-break: break-all;
+    }
+
     footer {
-      padding: 24px;
+      padding: 28px 18px;
       color: #8190a5;
       text-align: center;
       font-size: 13px;
+      border-top: 1px solid var(--border);
+    }
+
+    @media (max-width: 600px) {
+      header {
+        padding: 25px 14px;
+      }
+
+      main {
+        width: calc(100% - 20px);
+        margin: 18px auto;
+      }
+
+      .panel {
+        padding: 17px;
+      }
+
+      button {
+        max-width: 100%;
+      }
     }
   </style>
 </head>
+
 <body>
+
   <header>
     <h1>HOLOTRUST</h1>
     <p>Decentralized Identity & Reputation Network</p>
+    <p class="muted">
+      Human · AI · Service
+    </p>
   </header>
 
   <main>
-    <section class="panel">
+
+    <!-- IDENTITY SECTION -->
+
+    <section class="panel" id="identityPanel">
+
       <h2>Agent Identity</h2>
+
       <p class="muted">
-        İnsanlar, yapay zekâ ajanları ve dijital servisler için merkeziyetsiz kimlik.
+        İnsanlar, yapay zekâ ajanları ve dijital servisler için
+        merkeziyetsiz kimlik ve itibar altyapısı.
       </p>
 
-      <div id="connectionStatus" class="status">
+      <div
+        id="connectionStatus"
+        class="status"
+        role="status"
+        aria-live="polite"
+      >
         Holochain bağlantısı bekleniyor.
       </div>
 
-      <button id="connectButton" type="button">Holochain'e bağlan</button>
-      <button id="readButton" type="button">Profilimi ağdan oku</button>
+      <div>
+        <button
+          id="connectButton"
+          type="button"
+        >
+          Holochain'e bağlan
+        </button>
+
+        <button
+          id="readButton"
+          type="button"
+          class="secondary"
+          disabled
+        >
+          Profilimi ağdan oku
+        </button>
+      </div>
+
+      <!-- PROFILE FORM -->
 
       <form id="profileForm">
-        <label for="displayName">Görünen ad</label>
-        <input id="displayName" maxlength="64" required
-          placeholder="Ajan adını gir">
 
-        <label>Ajan türü</label>
-        <div>
-          <button class="type active" type="button" data-type="Human">Human</button>
-          <button class="type" type="button" data-type="AI">AI</button>
-          <button class="type" type="button" data-type="Service">Service</button>
+        <label for="displayName">
+          Görünen ad
+        </label>
+
+        <input
+          id="displayName"
+          name="displayName"
+          type="text"
+          maxlength="64"
+          autocomplete="nickname"
+          required
+          placeholder="Ajan adını gir"
+        >
+
+        <label>
+          Ajan türü
+        </label>
+
+        <div class="identity-types">
+
+          <button
+            class="type active"
+            type="button"
+            data-type="Human"
+          >
+            Human
+          </button>
+
+          <button
+            class="type"
+            type="button"
+            data-type="AI"
+          >
+            AI
+          </button>
+
+          <button
+            class="type"
+            type="button"
+            data-type="Service"
+          >
+            Service
+          </button>
+
         </div>
 
-        <label for="description">Açıklama</label>
-        <textarea id="description" maxlength="280" rows="3"
-          placeholder="Kendini tanıt..."></textarea>
+        <label for="description">
+          Açıklama
+        </label>
 
-        <button id="saveButton" type="submit">Profili kaydet</button>
+        <textarea
+          id="description"
+          name="description"
+          maxlength="280"
+          rows="4"
+          placeholder="Kendini veya hizmetini tanıt..."
+        ></textarea>
+
+        <button
+          id="saveButton"
+          type="submit"
+        >
+          Profili kaydet
+        </button>
+
       </form>
 
-      <div id="profileCard" class="status hidden">
+      <!-- PROFILE CARD -->
+
+      <div
+        id="profileCard"
+        class="status hidden"
+        aria-live="polite"
+      >
+
         <h3 id="cardName"></h3>
+
         <p id="cardType"></p>
+
         <p id="cardDescription"></p>
-        <p id="profileId" class="muted"></p>
-        <button id="copyButton" type="button">Kimliği kopyala</button>
-        <button id="editButton" type="button">Düzenle</button>
+
+        <p
+          id="profileId"
+          class="muted profile-id"
+        ></p>
+
+        <button
+          id="copyButton"
+          type="button"
+        >
+          Kimliği kopyala
+        </button>
+
+        <button
+          id="editButton"
+          type="button"
+          class="secondary"
+        >
+          Düzenle
+        </button>
+
       </div>
 
-      <div id="toast" class="status hidden" aria-live="polite"></div>
+      <!-- NOTIFICATIONS -->
+
+      <div
+        id="toast"
+        class="status hidden"
+        role="status"
+        aria-live="polite"
+      ></div>
+
     </section>
 
-    <section class="panel">
+    <!-- PUBLIC IDENTITY LOOKUP -->
+
+    <section class="panel" id="publicLookupPanel">
+
       <h2>Public Agent Lookup</h2>
-      <p class="muted">Bir ajanın profilini ActionHash ile görüntüle.</p>
-      <label for="publicAgentHash">Profile ActionHash</label>
-      <input id="publicAgentHash" placeholder="uhCkk...">
-      <button id="publicLookupButton" type="button">Profili görüntüle</button>
-      <div id="publicProfileResult" class="status" aria-live="polite">
+
+      <p class="muted">
+        Holochain Agent Public Key kullanarak başka bir ajanın
+        merkeziyetsiz profilini görüntüle.
+      </p>
+
+      <label for="publicAgentHash">
+        Agent Public Key
+      </label>
+
+      <input
+        id="publicAgentHash"
+        type="text"
+        autocomplete="off"
+        spellcheck="false"
+        placeholder="uhCAk..."
+      >
+
+      <button
+        id="publicLookupButton"
+        type="button"
+      >
+        Profili görüntüle
+      </button>
+
+      <div
+        id="publicProfileResult"
+        class="status"
+        aria-live="polite"
+      >
         Arama bekleniyor.
       </div>
+
     </section>
+
   </main>
 
   <footer>
-    HoloTrust · Agent-centric identity and reputation
+    <p>HOLOTRUST</p>
+    <p>Agent-centric identity and reputation network</p>
+    <p class="muted">
+      Built on Holochain · Decentralized by design
+    </p>
   </footer>
 
-  <script>
-    (() => {
-      const storageKey = "holotrust.profile.v1";
-      const $ = id => document.getElementById(id);
-      let selectedType = "Human";
+  <!-- HOLOCHAIN IDENTITY MODULE -->
 
-      function render() {
-        try {
-          const profile = JSON.parse(localStorage.getItem(storageKey));
-          if (!profile) return;
+  <script
+    type="module"
+    src="./holochain-ui.js"
+  ></script>
 
-          $("cardName").textContent = profile.displayName || "";
-          $("cardType").textContent = profile.agentType || "Human";
-          $("cardDescription").textContent = profile.description || "";
-          $("profileId").textContent = profile.id || "Browser-local profile";
-          $("profileCard").classList.remove("hidden");
-        } catch {
-          localStorage.removeItem(storageKey);
-        }
-      }
+  <!-- REPUTATION MODULE -->
 
-      document.querySelectorAll(".type").forEach(button => {
-        button.addEventListener("click", () => {
-          selectedType = button.dataset.type;
-          document.querySelectorAll(".type").forEach(item =>
-            item.classList.toggle("active", item === button)
-          );
-        });
-      });
+  <script
+    type="module"
+    src="./reputation-ui.js"
+  ></script>
 
-      $("profileForm").addEventListener("submit", event => {
-        event.preventDefault();
-
-        const profile = {
-          id: crypto.randomUUID(),
-          displayName: $("displayName").value.trim(),
-          agentType: selectedType,
-          description: $("description").value.trim()
-        };
-
-        localStorage.setItem(storageKey, JSON.stringify(profile));
-        render();
-        $("toast").textContent = "Profil tarayıcıya kaydedildi.";
-        $("toast").classList.remove("hidden");
-      });
-
-      $("copyButton").addEventListener("click", async () => {
-        const profile = JSON.parse(localStorage.getItem(storageKey) || "null");
-        if (!profile) return;
-        await navigator.clipboard.writeText(profile.id);
-        $("toast").textContent = "Kimlik kopyalandı.";
-        $("toast").classList.remove("hidden");
-      });
-
-      $("editButton").addEventListener("click", () => {
-        const profile = JSON.parse(localStorage.getItem(storageKey) || "null");
-        if (!profile) return;
-        $("displayName").value = profile.displayName || "";
-        $("description").value = profile.description || "";
-        selectedType = profile.agentType || "Human";
-        document.querySelectorAll(".type").forEach(item =>
-          item.classList.toggle("active", item.dataset.type === selectedType)
-        );
-      });
-
-      render();
-    })();
-  </script>
-
-  <script type="module" src="./holochain-ui.js"></script>
-  <script type="module" src="./reputation-ui.js"></script>
 </body>
 </html>
