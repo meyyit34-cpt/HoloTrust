@@ -88,8 +88,7 @@ async fn two_agents_share_profiles_and_cannot_modify_each_others_data() {
         "SECURITY FAILURE: Bob modified Alice's profile"
     );
 
-    let original_profile: Option<Record> =
-        conductors[0].call(&alice, "get_my_profile", ()).await;
+    let original_profile: Option<Record> = conductors[0].call(&alice, "get_my_profile", ()).await;
 
     let original_profile = original_profile.expect("Alice's profile disappeared");
 
@@ -139,7 +138,10 @@ async fn two_agents_share_profiles_and_cannot_modify_each_others_data() {
         .expect("Could not decode review")
         .expect("Review entry missing");
 
-    assert_eq!(decoded_review.subject_agent, alice_cell.agent_pubkey().clone());
+    assert_eq!(
+        decoded_review.subject_agent,
+        alice_cell.agent_pubkey().clone()
+    );
     assert_eq!(decoded_review.rating, 5);
     assert_eq!(decoded_review.comment.as_deref(), Some("Reliable agent"));
 
