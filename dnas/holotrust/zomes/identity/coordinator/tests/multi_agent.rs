@@ -8,8 +8,7 @@ use identity_integrity::AgentType;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn multi_agent_identity_and_reputation_security() {
-    let dna_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../../workdir/holotrust.dna");
+    let dna_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../workdir/holotrust.dna");
 
     assert!(
         dna_path.exists(),
@@ -121,8 +120,13 @@ async fn multi_agent_identity_and_reputation_security() {
         .await;
 
     assert_eq!(reviews.len(), 2);
-    assert!(reviews.iter().any(|review| review.action().author() == &bob));
-    assert!(reviews.iter().any(|review| review.action().author() == &carol));
+
+    assert!(reviews
+        .iter()
+        .any(|review| review.action().author() == &bob));
+    assert!(reviews
+        .iter()
+        .any(|review| review.action().author() == &carol));
 
     let duplicate_review = conductors[1]
         .sweet_handle()
@@ -151,7 +155,9 @@ async fn multi_agent_identity_and_reputation_security() {
         .call(
             &alice_zome,
             "get_reputation_summary",
-            GetReviewsInput { subject_agent: alice },
+            GetReviewsInput {
+                subject_agent: alice,
+            },
         )
         .await;
 
