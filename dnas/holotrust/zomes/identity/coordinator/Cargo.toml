@@ -13,4 +13,4 @@ serde = { workspace = true }
 identity_integrity = { path = "../integrity" }
 
 [dev-dependencies]
-holochain = { version = "=0.7.1", default-features = false, features = ["sweettest", "sqlite", "wasmer-sys-cranelift", "encryption"] }
+holochain = { version = "=0.7.1", default-features = false, features = ["sweettest"] }
