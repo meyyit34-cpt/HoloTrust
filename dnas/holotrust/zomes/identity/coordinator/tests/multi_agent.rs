@@ -1,8 +1,10 @@
 use std::path::PathBuf;
 
+use holochain::prelude::Record;
 use holochain::sweettest::*;
 use identity_coordinator::{
-    CreateProfileInput, CreateReviewInput, GetProfileInput, GetReviewsInput, UpdateProfileInput,
+    CreateProfileInput, CreateReviewInput, GetProfileInput, GetReviewsInput, ReputationSummary,
+    UpdateProfileInput,
 };
 use identity_integrity::AgentType;
 
@@ -50,7 +52,11 @@ async fn multi_agent_identity_and_reputation_security() {
         )
         .await;
 
-    let discovered_profile = conductors[1]
+    await_consistency(apps.iter().flat_map(|app| app.cells().iter()))
+        .await
+        .expect("Alice profile did not reach DHT consistency");
+
+    let discovered_profile: Option<Record> = conductors[1]
         .sweet_handle()
         .call(
             &bob_zome,
@@ -106,9 +112,9 @@ async fn multi_agent_identity_and_reputation_security() {
 
     await_consistency(apps.iter().flat_map(|app| app.cells().iter()))
         .await
-        .expect("Agents did not reach DHT consistency");
+        .expect("Review records did not reach DHT consistency");
 
-    let reviews = conductors[0]
+    let reviews: Vec<Record> = conductors[0]
         .sweet_handle()
         .call(
             &alice_zome,
@@ -150,7 +156,7 @@ async fn multi_agent_identity_and_reputation_security() {
 
     assert!(self_review.is_err());
 
-    let summary = conductors[0]
+    let summary: ReputationSummary = conductors[0]
         .sweet_handle()
         .call(
             &alice_zome,
