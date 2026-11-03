@@ -1,3 +1,4 @@
+
 use hdi::prelude::*;
 use serde::{Deserialize, Serialize};
 
@@ -197,16 +198,50 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
             link_type: LinkTypes::AgentToReview,
             action,
         }) => {
-            let owner = action.base_address.clone().into_agent_pub_key();
-            let target = action.target_address.clone().into_action_hash();
+            let Some(owner) = action.base_address.clone().into_agent_pub_key() else {
+                return Ok(ValidateCallbackResult::Invalid(
+                    "Review link base must be an agent".into(),
+                ));
+            };
 
-            if owner.is_some() && target.is_some() {
-                Ok(ValidateCallbackResult::Valid)
-            } else {
-                Ok(ValidateCallbackResult::Invalid(
-                    "Review links must reference valid agents and reviews".into(),
-                ))
+            let Some(target) = action.target_address.clone().into_action_hash() else {
+                return Ok(ValidateCallbackResult::Invalid(
+                    "Review link target must be an action hash".into(),
+                ));
+            };
+
+            let record = must_get_valid_record(target)?;
+
+            if record.action().author() != action.author() {
+                return Ok(ValidateCallbackResult::Invalid(
+                    "Review link creator must be the review author".into(),
+                ));
             }
+
+            let review = record
+                .entry()
+                .to_app_option::<ReputationReview>()
+                .map_err(|e| wasm_error!(WasmErrorInner::Guest(e.to_string())))?;
+
+            let Some(review) = review else {
+                return Ok(ValidateCallbackResult::Invalid(
+                    "Review link target must contain a reputation review".into(),
+                ));
+            };
+
+            if review.subject_agent != owner {
+                return Ok(ValidateCallbackResult::Invalid(
+                    "Review link base must match the review subject".into(),
+                ));
+            }
+
+            if review.subject_agent == *action.author() {
+                return Ok(ValidateCallbackResult::Invalid(
+                    "Agents cannot publish reviews about themselves".into(),
+                ));
+            }
+
+            Ok(ValidateCallbackResult::Valid)
         }
 
         _ => Ok(ValidateCallbackResult::Valid),
