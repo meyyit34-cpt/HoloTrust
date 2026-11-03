@@ -257,3 +257,118 @@ async fn two_agents_share_profiles_and_cannot_modify_each_others_data() {
         .await
         .expect("DHT consistency failed after reputation tests");
 }
+#[tokio::test(flavor = "multi_thread")]
+async fn independent_agents_can_review_same_subject() {
+    let dna_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../../workdir/holotrust.dna");
+
+    assert!(dna_path.exists());
+
+    let dna_file = SweetDnaFile::from_bundle(&dna_path)
+        .await
+        .expect("Could not load HoloTrust DNA");
+
+    let mut conductors = SweetConductorBatch::standard(3).await;
+
+    let apps = conductors
+        .setup_app("holotrust-review-test", &[dna_file])
+        .await
+        .expect("Could not install app");
+
+    conductors.exchange_peer_info().await;
+
+    let alice_cell = apps[0].cells()[0].clone();
+    let bob_cell = apps[1].cells()[0].clone();
+    let carol_cell = apps[2].cells()[0].clone();
+
+    let bob = bob_cell.zome("identity_coordinator");
+    let carol = carol_cell.zome("identity_coordinator");
+    let alice = alice_cell.zome("identity_coordinator");
+
+    let bob_review: ActionHash = conductors[1]
+        .call(
+            &bob,
+            "create_review",
+            identity_coordinator::CreateReviewInput {
+                subject_agent: alice_cell.agent_pubkey().clone(),
+                rating: 5,
+                comment: Some("Reliable agent".into()),
+            },
+        )
+        .await;
+
+    assert!(!bob_review.get_raw_36().is_empty());
+
+    let carol_review: ActionHash = conductors[2]
+        .call(
+            &carol,
+            "create_review",
+            identity_coordinator::CreateReviewInput {
+                subject_agent: alice_cell.agent_pubkey().clone(),
+                rating: 4,
+                comment: Some("Helpful collaborator".into()),
+            },
+        )
+        .await;
+
+    assert!(!carol_review.get_raw_36().is_empty());
+
+    await_consistency(&[
+        alice_cell.clone(),
+        bob_cell.clone(),
+        carol_cell.clone(),
+    ])
+    .await
+    .expect("DHT consistency failed");
+
+    let reviews: Vec<Record> = conductors[0]
+        .call(
+            &alice,
+            "get_reviews",
+            identity_coordinator::GetReviewsInput {
+                subject_agent: alice_cell.agent_pubkey().clone(),
+            },
+        )
+        .await;
+
+    assert_eq!(reviews.len(), 2);
+
+    let duplicate = conductors[1]
+        .call_fallible::<_, ActionHash>(
+            &bob,
+            "create_review",
+            identity_coordinator::CreateReviewInput {
+                subject_agent: alice_cell.agent_pubkey().clone(),
+                rating: 3,
+                comment: Some("Duplicate attempt".into()),
+            },
+        )
+        .await;
+
+    assert!(
+        duplicate.is_err(),
+        "SECURITY FAILURE: duplicate review accepted"
+    );
+
+    let summary: identity_coordinator::ReputationSummary =
+        conductors[0]
+            .call(
+                &alice,
+                "get_reputation_summary",
+                identity_coordinator::GetReviewsInput {
+                    subject_agent: alice_cell.agent_pubkey().clone(),
+                },
+            )
+            .await;
+
+    assert_eq!(summary.review_count, 2);
+    assert!((summary.average_rating - 4.5).abs() < f64::EPSILON);
+
+    await_consistency(&[
+        alice_cell,
+        bob_cell,
+        carol_cell,
+    ])
+    .await
+    .expect("Final DHT consistency failed");
+}
