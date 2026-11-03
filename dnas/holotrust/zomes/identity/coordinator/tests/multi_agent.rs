@@ -33,7 +33,7 @@ async fn two_agents_share_profiles_and_cannot_modify_each_others_data() {
 
     let alice_profile_hash: ActionHash = conductors[0]
         .call_fallible::<_, ActionHash>(
-            &alice_cell.zome("identity"),
+            &alice_cell.zome("identity_coordinator"),
             "create_profile",
             CreateProfileInput {
                 display_name: "Alice".to_string(),
@@ -49,8 +49,8 @@ async fn two_agents_share_profiles_and_cannot_modify_each_others_data() {
         .expect("DHT consistency failed");
 
     let shared_profile: Option<Record> = conductors[1]
-        .call(
-            &bob_cell.zome("identity"),
+        .call_fallible::<_, Option<Record>>(
+            &bob_cell.zome("identity_coordinator"),
             "get_profile",
             GetProfileInput {
                 agent_pub_key: alice_cell.agent_pubkey().clone(),
@@ -71,7 +71,7 @@ async fn two_agents_share_profiles_and_cannot_modify_each_others_data() {
 
     let unauthorized_update = conductors[1]
         .call(
-            &bob_cell.zome("identity"),
+            &bob_cell.zome("identity_coordinator"),
             "update_profile",
             UpdateProfileInput {
                 action_hash: alice_profile_hash,
@@ -89,7 +89,7 @@ async fn two_agents_share_profiles_and_cannot_modify_each_others_data() {
 
     let unchanged_profile: Option<Record> = conductors[0]
         .call(
-            &alice_cell.zome("identity"),
+            &alice_cell.zome("identity_coordinator"),
             "get_profile",
             GetProfileInput {
                 agent_pub_key: alice_cell.agent_pubkey().clone(),
@@ -140,7 +140,7 @@ async fn independent_agents_can_review_same_subject() {
 
     let bob_review_hash: ActionHash = conductors[1]
         .call_fallible::<_, ActionHash>(
-            &bob_cell.zome("identity"),
+            &bob_cell.zome("identity_coordinator"),
             "create_review",
             CreateReviewInput {
                 subject_agent: alice_cell.agent_pubkey().clone(),
@@ -153,7 +153,7 @@ async fn independent_agents_can_review_same_subject() {
 
     let carol_review_hash: ActionHash = conductors[2]
         .call_fallible::<_, ActionHash>(
-            &carol_cell.zome("identity"),
+            &carol_cell.zome("identity_coordinator"),
             "create_review",
             CreateReviewInput {
                 subject_agent: alice_cell.agent_pubkey().clone(),
@@ -169,8 +169,8 @@ async fn independent_agents_can_review_same_subject() {
         .expect("DHT consistency failed");
 
     let reviews: Vec<Record> = conductors[0]
-        .call(
-            &alice_cell.zome("identity"),
+        .call_fallible::<_, Vec<Record>>(
+            &alice_cell.zome("identity_coordinator"),
             "get_reviews",
             GetReviewsInput {
                 subject_agent: alice_cell.agent_pubkey().clone(),
@@ -201,7 +201,7 @@ async fn independent_agents_can_review_same_subject() {
 
     let duplicate_review = conductors[1]
         .call(
-            &bob_cell.zome("identity"),
+            &bob_cell.zome("identity_coordinator"),
             "create_review",
             CreateReviewInput {
                 subject_agent: alice_cell.agent_pubkey().clone(),
@@ -218,7 +218,7 @@ async fn independent_agents_can_review_same_subject() {
 
     let self_review = conductors[0]
         .call(
-            &alice_cell.zome("identity"),
+            &alice_cell.zome("identity_coordinator"),
             "create_review",
             CreateReviewInput {
                 subject_agent: alice_cell.agent_pubkey().clone(),
@@ -232,7 +232,7 @@ async fn independent_agents_can_review_same_subject() {
 
     let summary: ReputationSummary = conductors[0]
         .call(
-            &alice_cell.zome("identity"),
+            &alice_cell.zome("identity_coordinator"),
             "get_reputation_summary",
             GetReviewsInput {
                 subject_agent: alice_cell.agent_pubkey().clone(),
