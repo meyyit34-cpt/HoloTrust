@@ -9,7 +9,6 @@ on:
   pull_request:
   workflow_dispatch:
 
-# Yeni commit geldiğinde eski çalışmayı iptal et.
 concurrency:
   group: holotrust-ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -42,6 +41,7 @@ jobs:
 
     env:
       CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUSTFLAGS: '--cfg getrandom_backend="custom" -C link-arg=--allow-undefined'
+      CARGO_BUILD_JOBS: 2
 
     steps:
       - name: Checkout repository
@@ -59,7 +59,7 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             target
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.toml', '**/Cargo.lock', 'rust-toolchain.toml', 'rust-toolchain') }}
           restore-keys: |
             ${{ runner.os }}-cargo-
 
@@ -80,19 +80,59 @@ jobs:
             substituters = https://cache.nixos.org https://holochain-ci.cachix.org
             trusted-public-keys = cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY= holochain-ci.cachix.org-1:5IUSkZc0aoRS53rfkvH9Kid40NpyjwCMCzwRTXy+QN8=
 
-      - name: Package DNA and hApp
-        working-directory: dnas/holotrust/workdir
+      - name: Compile tests while packaging DNA
+        shell: bash
         run: |
-          nix develop --print-build-logs github:holochain/holonix?ref=main-0.7 -c bash -euo pipefail -c '
-            hc --version
-            hc dna pack .
-            hc app pack .
-            test -s holotrust.dna
-            test -s holotrust.happ
-          '
+          set -Eeuo pipefail
+
+          TEST_LOG="$RUNNER_TEMP/holotrust-test-build.log"
+          PACKAGE_LOG="$RUNNER_TEMP/holotrust-package.log"
+
+          (
+            set -o pipefail
+            cargo test --workspace --no-run 2>&1 | tee "$TEST_LOG"
+          ) &
+          TEST_PID=$!
+
+          (
+            set -o pipefail
+            nix develop --print-build-logs github:holochain/holonix?ref=main-0.7 -c bash -euo pipefail -c '
+              hc --version
+              hc dna pack .
+              hc app pack .
+              test -s holotrust.dna
+              test -s holotrust.happ
+            ' 2>&1 | tee "$PACKAGE_LOG"
+          ) &
+          PACKAGE_PID=$!
+
+          set +e
+          wait "$TEST_PID"
+          TEST_STATUS=$?
+
+          wait "$PACKAGE_PID"
+          PACKAGE_STATUS=$?
+          set -e
+
+          if [ "$TEST_STATUS" -ne 0 ]; then
+            echo "Native test compilation failed."
+          fi
+
+          if [ "$PACKAGE_STATUS" -ne 0 ]; then
+            echo "DNA/hApp packaging failed."
+          fi
+
+          if [ "$TEST_STATUS" -ne 0 ] || [ "$PACKAGE_STATUS" -ne 0 ]; then
+            exit 1
+          fi
 
       - name: Run workspace tests
         run: cargo test --workspace
+
+      - name: Verify packaged hApp
+        run: |
+          test -s dnas/holotrust/workdir/holotrust.dna
+          test -s dnas/holotrust/workdir/holotrust.happ
 
       - name: Upload hApp bundle
         uses: actions/upload-artifact@v7
