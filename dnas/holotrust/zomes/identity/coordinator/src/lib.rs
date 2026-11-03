@@ -70,7 +70,6 @@ pub fn create_profile(input: CreateProfileInput) -> ExternResult<ActionHash> {
     }
 
     let profile = profile_from_input(input.display_name, input.agent_type, input.description);
-
     let action_hash = create_entry(EntryTypes::AgentProfile(profile))?;
     index_profile(action_hash.clone())?;
 
@@ -161,9 +160,8 @@ pub fn get_profile(input: GetProfileInput) -> ExternResult<Option<Record>> {
 pub fn update_profile(input: UpdateProfileInput) -> ExternResult<ActionHash> {
     let agent = agent_info()?.agent_initial_pubkey;
 
-    let original_record = get(input.action_hash.clone(), GetOptions::default())?.ok_or(
-        wasm_error!(WasmErrorInner::Guest("Profile not found".into())),
-    )?;
+    let original_record = get(input.action_hash.clone(), GetOptions::default())?
+        .ok_or(wasm_error!(WasmErrorInner::Guest("Profile not found".into())))?;
 
     if original_record.action().author() != &agent
         || original_record
@@ -179,8 +177,7 @@ pub fn update_profile(input: UpdateProfileInput) -> ExternResult<ActionHash> {
 
     let profile = profile_from_input(input.display_name, input.agent_type, input.description);
 
-    validate_profile(&profile)
-        .map_err(|reason| wasm_error!(WasmErrorInner::Guest(reason)))?;
+    validate_profile(&profile).map_err(|reason| wasm_error!(WasmErrorInner::Guest(reason)))?;
 
     let updated_hash = update_entry(input.action_hash, &EntryTypes::AgentProfile(profile))?;
 
@@ -215,8 +212,7 @@ pub fn create_review(input: CreateReviewInput) -> ExternResult<ActionHash> {
         comment: input.comment,
     };
 
-    validate_review(&review)
-        .map_err(|reason| wasm_error!(WasmErrorInner::Guest(reason)))?;
+    validate_review(&review).map_err(|reason| wasm_error!(WasmErrorInner::Guest(reason)))?;
 
     let existing_links = get_links(
         LinkQuery::try_new(input.subject_agent.clone(), LinkTypes::AgentToReview)?,
@@ -240,10 +236,7 @@ pub fn create_review(input: CreateReviewInput) -> ExternResult<ActionHash> {
             continue;
         }
 
-        let existing_review = match existing_record
-            .entry()
-            .to_app_option::<ReputationReview>()
-        {
+        let existing_review = match existing_record.entry().to_app_option::<ReputationReview>() {
             Ok(Some(review)) => review,
             _ => continue,
         };
@@ -287,12 +280,10 @@ pub fn get_reviews(input: GetReviewsInput) -> ExternResult<Vec<Record>> {
             continue;
         };
 
-        // The link creator must be the same agent that authored the review.
         if record.action().author() != &link.author {
             continue;
         }
 
-        // A reviewer cannot publish a review about itself.
         if record.action().author() == &input.subject_agent {
             continue;
         }
@@ -302,12 +293,10 @@ pub fn get_reviews(input: GetReviewsInput) -> ExternResult<Vec<Record>> {
             _ => continue,
         };
 
-        // The indexed subject and the review's actual subject must agree.
         if review.subject_agent != input.subject_agent {
             continue;
         }
 
-        // Re-apply integrity-level content rules when reading DHT data.
         if validate_review(&review).is_err() {
             continue;
         }
@@ -331,7 +320,6 @@ pub fn get_reputation_summary(input: GetReviewsInput) -> ExternResult<Reputation
             _ => continue,
         };
 
-        // Defensive validation: only valid ratings contribute to reputation.
         if validate_review(&review).is_err() {
             continue;
         }
