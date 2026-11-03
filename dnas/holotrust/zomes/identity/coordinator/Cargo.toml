@@ -11,3 +11,6 @@ crate-type = ["cdylib", "rlib"]
 hdk = { workspace = true }
 serde = { workspace = true }
 identity_integrity = { path = "../integrity" }
+
+[dev-dependencies]
+holochain = { version = "=0.7.1", default-features = false, features = ["sweettest", "sqlite", "wasmer-sys-cranelift", "encryption"] }
