@@ -160,8 +160,9 @@ pub fn get_profile(input: GetProfileInput) -> ExternResult<Option<Record>> {
 pub fn update_profile(input: UpdateProfileInput) -> ExternResult<ActionHash> {
     let agent = agent_info()?.agent_initial_pubkey;
 
-    let original_record = get(input.action_hash.clone(), GetOptions::default())?
-        .ok_or(wasm_error!(WasmErrorInner::Guest("Profile not found".into())))?;
+    let original_record = get(input.action_hash.clone(), GetOptions::default())?.ok_or(
+        wasm_error!(WasmErrorInner::Guest("Profile not found".into())),
+    )?;
 
     if original_record.action().author() != &agent
         || original_record
