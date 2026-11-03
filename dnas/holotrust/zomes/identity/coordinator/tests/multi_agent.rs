@@ -9,7 +9,8 @@ use std::path::PathBuf;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn two_agents_share_profiles_and_cannot_modify_each_others_data() {
-    let dna_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../workdir/holotrust.dna");
+    let dna_path =
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../workdir/holotrust.dna");
 
     assert!(
         dna_path.exists(),
@@ -32,7 +33,7 @@ async fn two_agents_share_profiles_and_cannot_modify_each_others_data() {
     let bob_cell = apps[1].cells()[0].clone();
 
     let alice_profile_hash: ActionHash = conductors[0]
-        .call(
+        .call_fallible::<_, ActionHash>(
             &alice_cell.zome("identity"),
             "create_profile",
             CreateProfileInput {
@@ -115,7 +116,8 @@ async fn two_agents_share_profiles_and_cannot_modify_each_others_data() {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn independent_agents_can_review_same_subject() {
-    let dna_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../workdir/holotrust.dna");
+    let dna_path =
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../workdir/holotrust.dna");
 
     assert!(
         dna_path.exists(),
@@ -139,7 +141,7 @@ async fn independent_agents_can_review_same_subject() {
     let carol_cell = apps[2].cells()[0].clone();
 
     let bob_review_hash: ActionHash = conductors[1]
-        .call(
+        .call_fallible::<_, ActionHash>(
             &bob_cell.zome("identity"),
             "create_review",
             CreateReviewInput {
@@ -152,7 +154,7 @@ async fn independent_agents_can_review_same_subject() {
         .expect("Bob review creation failed");
 
     let carol_review_hash: ActionHash = conductors[2]
-        .call(
+        .call_fallible::<_, ActionHash>(
             &carol_cell.zome("identity"),
             "create_review",
             CreateReviewInput {
