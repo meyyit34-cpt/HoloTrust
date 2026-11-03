@@ -1,12 +1,16 @@
 use std::path::PathBuf;
 
-use hdk::prelude::*;
 use holochain::sweettest::*;
+use identity_coordinator::{
+    CreateProfileInput, CreateReviewInput, GetProfileInput, GetReviewsInput,
+    UpdateProfileInput,
+};
+use identity_integrity::AgentType;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn multi_agent_identity_and_reputation_security() {
-    // Load the packaged DNA only once.
-    let dna_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../workdir/holotrust.dna");
+    let dna_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../../workdir/holotrust.dna");
 
     assert!(
         dna_path.exists(),
@@ -14,79 +18,174 @@ async fn multi_agent_identity_and_reputation_security() {
         dna_path.display()
     );
 
-    let dna = DnaFile::from_bundle(&dna_path)
+    let dna = SweetDnaFile::from_bundle(&dna_path)
         .await
         .expect("Failed to load DNA bundle");
 
     let mut conductors = SweetConductorBatch::standard(3).await;
+
     let apps = conductors
         .setup_app("holotrust", [&dna])
         .await
         .expect("Failed to install apps");
 
-    let alice = apps[0].agent_pubkey().clone();
-    let bob = apps[1].agent_pubkey().clone();
-    let carol = apps[2].agent_pubkey().clone();
+    conductors.exchange_peer_info().await;
 
-    // Alice creates her identity.
+    let alice = apps[0].agent().clone();
+    let bob = apps[1].agent().clone();
+    let carol = apps[2].agent().clone();
+
+    let alice_zome = apps[0].cells()[0].zome("identity_coordinator");
+    let bob_zome = apps[1].cells()[0].zome("identity_coordinator");
+    let carol_zome = apps[2].cells()[0].zome("identity_coordinator");
+
+    // Alice creates her profile.
     let alice_profile = conductors[0]
-        .call(&apps[0], "identity", "create_profile", ())
+        .sweet_handle()
+        .call(
+            &alice_zome,
+            "create_profile",
+            CreateProfileInput {
+                display_name: "Alice".into(),
+                agent_type: AgentType::Human,
+                description: Some("Alice identity profile".into()),
+            },
+        )
         .await;
 
-    // Bob can discover Alice's profile.
+    // Bob discovers Alice's profile.
     let discovered_profile = conductors[1]
-        .call(&apps[1], "identity", "get_profile", alice.clone())
+        .sweet_handle()
+        .call(
+            &bob_zome,
+            "get_profile",
+            GetProfileInput {
+                agent_pub_key: alice.clone(),
+            },
+        )
         .await;
 
-    assert_eq!(discovered_profile, Some(alice_profile.clone()));
+    assert!(discovered_profile.is_some());
+
+    assert_eq!(
+        discovered_profile.unwrap().action().author(),
+        &alice
+    );
 
     // Bob cannot update Alice's profile.
     let unauthorized_update = conductors[1]
+        .sweet_handle()
         .call_fallible(
-            &apps[1],
-            "identity",
+            &bob_zome,
             "update_profile",
-            alice_profile.clone(),
+            UpdateProfileInput {
+                action_hash: alice_profile.clone(),
+                display_name: "Unauthorized change".into(),
+                agent_type: AgentType::Human,
+                description: None,
+            },
         )
         .await;
 
     assert!(unauthorized_update.is_err());
 
-    // Bob and Carol create reviews for Alice.
-    let bob_review = conductors[1]
-        .call(&apps[1], "reputation", "create_review", ())
+    // Bob creates a review for Alice.
+    let bob_review_input = CreateReviewInput {
+        subject_agent: alice.clone(),
+        rating: 5,
+        comment: Some("Good experience".into()),
+    };
+
+    conductors[1]
+        .sweet_handle()
+        .call(
+            &bob_zome,
+            "create_review",
+            bob_review_input,
+        )
         .await;
 
-    let carol_review = conductors[2]
-        .call(&apps[2], "reputation", "create_review", ())
+    // Carol creates a review for Alice.
+    conductors[2]
+        .sweet_handle()
+        .call(
+            &carol_zome,
+            "create_review",
+            CreateReviewInput {
+                subject_agent: alice.clone(),
+                rating: 4,
+                comment: Some("Reliable agent".into()),
+            },
+        )
         .await;
 
-    // Alice can retrieve both reviews.
+    // Wait until all three agents have integrated the published data.
+    await_consistency(
+        apps.iter().flat_map(|app| app.cells().iter())
+    )
+    .await
+    .expect("Agents did not reach DHT consistency");
+
+    // Alice retrieves both reviews.
     let reviews = conductors[0]
-        .call(&apps[0], "reputation", "get_reviews", alice.clone())
+        .sweet_handle()
+        .call(
+            &alice_zome,
+            "get_reviews",
+            GetReviewsInput {
+                subject_agent: alice.clone(),
+            },
+        )
         .await;
 
     assert_eq!(reviews.len(), 2);
-    assert!(reviews.iter().any(|review| review == &bob_review));
-    assert!(reviews.iter().any(|review| review == &carol_review));
 
-    // Duplicate reviews are rejected.
+    assert!(reviews.iter().any(|review| {
+        review.action().author() == &bob
+    }));
+
+    assert!(reviews.iter().any(|review| {
+        review.action().author() == &carol
+    }));
+
+    // Bob cannot submit a duplicate review.
     let duplicate_review = conductors[1]
-        .call_fallible(&apps[1], "reputation", "create_review", ())
+        .sweet_handle()
+        .call_fallible(
+            &bob_zome,
+            "create_review",
+            bob_review_input,
+        )
         .await;
 
     assert!(duplicate_review.is_err());
 
-    // Self-reviews are rejected.
+    // Alice cannot review herself.
     let self_review = conductors[0]
-        .call_fallible(&apps[0], "reputation", "create_review", ())
+        .sweet_handle()
+        .call_fallible(
+            &alice_zome,
+            "create_review",
+            CreateReviewInput {
+                subject_agent: alice.clone(),
+                rating: 5,
+                comment: Some("Self review".into()),
+            },
+        )
         .await;
 
     assert!(self_review.is_err());
 
-    // Verify the reputation summary.
+    // Verify reputation summary.
     let summary = conductors[0]
-        .call(&apps[0], "reputation", "get_reputation_summary", alice)
+        .sweet_handle()
+        .call(
+            &alice_zome,
+            "get_reputation_summary",
+            GetReviewsInput {
+                subject_agent: alice,
+            },
+        )
         .await;
 
     assert_eq!(summary.review_count, 2);
