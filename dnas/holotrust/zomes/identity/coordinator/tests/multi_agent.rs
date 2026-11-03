@@ -9,7 +9,8 @@ use std::path::PathBuf;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn multi_agent_identity_and_reputation_security() {
-    let dna_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../workdir/holotrust.dna");
+    let dna_path =
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../workdir/holotrust.dna");
 
     assert!(
         dna_path.exists(),
@@ -69,7 +70,7 @@ async fn multi_agent_identity_and_reputation_security() {
     assert!(discovered_profile.is_some());
     assert_eq!(discovered_profile.unwrap().action().author(), &alice);
 
-    let unauthorized_update = conductors[1]
+    let unauthorized_update: Result<ActionHash, _> = conductors[1]
         .sweet_handle()
         .call_fallible(
             &bob_zome,
@@ -126,15 +127,19 @@ async fn multi_agent_identity_and_reputation_security() {
 
     assert_eq!(reviews.len(), 2);
 
-    assert!(reviews
-        .iter()
-        .any(|review| review.action().author() == &bob));
+    assert!(
+        reviews
+            .iter()
+            .any(|review| review.action().author() == &bob)
+    );
 
-    assert!(reviews
-        .iter()
-        .any(|review| review.action().author() == &carol));
+    assert!(
+        reviews
+            .iter()
+            .any(|review| review.action().author() == &carol)
+    );
 
-    let duplicate_review = conductors[1]
+    let duplicate_review: Result<ActionHash, _> = conductors[1]
         .sweet_handle()
         .call_fallible(
             &bob_zome,
@@ -149,7 +154,7 @@ async fn multi_agent_identity_and_reputation_security() {
 
     assert!(duplicate_review.is_err());
 
-    let self_review = conductors[0]
+    let self_review: Result<ActionHash, _> = conductors[0]
         .sweet_handle()
         .call_fallible(
             &alice_zome,
