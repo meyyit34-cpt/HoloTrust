@@ -130,7 +130,7 @@ async fn independent_agents_can_review_same_subject() {
     let mut conductors = SweetConductorBatch::standard(3).await;
 
     let apps = conductors
-        .setup_app("holotrust", &[dna_file.clone(), dna_file.clone(), dna_file])
+        .setup_app("holotrust", &[dna_file])
         .await
         .expect("Could not set up apps");
 
