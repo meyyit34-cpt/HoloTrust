@@ -226,6 +226,50 @@ async fn multi_agent_identity_and_reputation_security() {
 
     assert!(self_review.is_err());
 
+    let invalid_rating: Result<ActionHash, _> = conductors[0]
+        .sweet_handle()
+        .call_fallible(
+            &alice_zome,
+            "create_review",
+            CreateReviewInput {
+                subject_agent: bob.clone(),
+                rating: 6,
+                comment: None,
+            },
+        )
+        .await;
+
+    assert!(invalid_rating.is_err());
+
+    let long_comment: Result<ActionHash, _> = conductors[0]
+        .sweet_handle()
+        .call_fallible(
+            &alice_zome,
+            "create_review",
+            CreateReviewInput {
+                subject_agent: bob.clone(),
+                rating: 5,
+                comment: Some("x".repeat(501)),
+            },
+        )
+        .await;
+
+    assert!(long_comment.is_err());
+
+    let empty_summary: ReputationSummary = conductors[0]
+        .sweet_handle()
+        .call(
+            &alice_zome,
+            "get_reputation_summary",
+            GetReviewsInput {
+                subject_agent: bob.clone(),
+            },
+        )
+        .await;
+
+    assert_eq!(empty_summary.review_count, 0);
+    assert_eq!(empty_summary.average_rating, 0.0);
+
     let summary: ReputationSummary = conductors[0]
         .sweet_handle()
         .call(
