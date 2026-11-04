@@ -85,6 +85,70 @@ async fn multi_agent_identity_and_reputation_security() {
 
     assert!(unauthorized_update.is_err());
 
+    let updated_profile: ActionHash = conductors[0]
+        .sweet_handle()
+        .call(
+            &alice_zome,
+            "update_profile",
+            UpdateProfileInput {
+                action_hash: alice_profile.clone(),
+                display_name: "Alice Updated".into(),
+                agent_type: AgentType::Human,
+                description: Some("Updated description".into()),
+            },
+        )
+        .await;
+
+    await_consistency(apps.iter().flat_map(|app| app.cells().iter()))
+        .await
+        .expect("Updated profile did not reach DHT consistency");
+
+    let updated_discovery: Option<Record> = conductors[1]
+        .sweet_handle()
+        .call(
+            &bob_zome,
+            "get_profile",
+            GetProfileInput {
+                agent_pub_key: alice.clone(),
+            },
+        )
+        .await;
+
+    let updated_record = updated_discovery.expect("Updated profile not found");
+    assert_eq!(updated_record.action_address(), &updated_profile);
+
+    let stale_update: Result<ActionHash, _> = conductors[0]
+        .sweet_handle()
+        .call_fallible(
+            &alice_zome,
+            "update_profile",
+            UpdateProfileInput {
+                action_hash: alice_profile.clone(),
+                display_name: "Stale update".into(),
+                agent_type: AgentType::Human,
+                description: None,
+            },
+        )
+        .await;
+
+    assert!(stale_update.is_err());
+
+    let second_update: ActionHash = conductors[0]
+        .sweet_handle()
+        .call(
+            &alice_zome,
+            "update_profile",
+            UpdateProfileInput {
+                action_hash: updated_profile.clone(),
+                display_name: "Alice Second Update".into(),
+                agent_type: AgentType::Human,
+                description: None,
+            },
+        )
+        .await;
+
+    assert_ne!(second_update, updated_profile);
+
     let bob_review_input = CreateReviewInput {
         subject_agent: alice.clone(),
         rating: 5,
