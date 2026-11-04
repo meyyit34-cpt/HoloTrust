@@ -91,12 +91,12 @@ async fn multi_agent_identity_and_reputation_security() {
         comment: Some("Good experience".into()),
     };
 
-    conductors[1]
+    let _bob_review: ActionHash = conductors[1]
         .sweet_handle()
         .call(&bob_zome, "create_review", bob_review_input)
         .await;
 
-    conductors[2]
+    let _carol_review: ActionHash = conductors[2]
         .sweet_handle()
         .call(
             &carol_zome,
