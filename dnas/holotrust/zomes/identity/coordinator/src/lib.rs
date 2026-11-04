@@ -70,6 +70,7 @@ pub fn create_profile(input: CreateProfileInput) -> ExternResult<ActionHash> {
     }
 
     let profile = profile_from_input(input.display_name, input.agent_type, input.description);
+
     let action_hash = create_entry(EntryTypes::AgentProfile(profile))?;
     index_profile(action_hash.clone())?;
 
@@ -176,18 +177,42 @@ pub fn update_profile(input: UpdateProfileInput) -> ExternResult<ActionHash> {
         )));
     }
 
+    let is_latest = match get_my_profile(())? {
+        Some(record) => record.action_address() == &input.action_hash,
+        None => false,
+    };
+
+    if !is_latest {
+        return Err(wasm_error!(WasmErrorInner::Guest(
+            "Profile updates must target your latest profile version".into()
+        )));
+    }
+
     let profile = profile_from_input(input.display_name, input.agent_type, input.description);
 
     validate_profile(&profile).map_err(|reason| wasm_error!(WasmErrorInner::Guest(reason)))?;
 
+    let old_hash = input.action_hash.clone();
     let updated_hash = update_entry(input.action_hash, &EntryTypes::AgentProfile(profile))?;
 
     let links = get_links(
-        LinkQuery::try_new(agent, LinkTypes::AgentToProfile)?,
+        LinkQuery::try_new(agent.clone(), LinkTypes::AgentToProfile)?,
         GetStrategy::default(),
     )?;
 
     for link in links {
+        if link.author != agent {
+            continue;
+        }
+
+        let Some(target_hash) = link.target.clone().into_action_hash() else {
+            continue;
+        };
+
+        if target_hash != old_hash {
+            continue;
+        }
+
         delete_link(link.create_link_hash, GetOptions::default())?;
     }
 
