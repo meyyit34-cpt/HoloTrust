@@ -111,29 +111,6 @@ fn validate_profile_update(
 
 #[hdk_extern]
 pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
-    match &op {
-        Op::RegisterDeleteLink(RegisterDeleteLink {
-            delete_link,
-            create_link,
-        }) => {
-            if delete_link.author != create_link.author {
-                return Ok(ValidateCallbackResult::Invalid(
-                    "Only the link author can delete a link".into(),
-                ));
-            }
-        }
-        Op::RegisterDelete(RegisterDelete { delete }) => {
-            let original = must_get_action(delete.hashed.content.deletes_address.clone())?;
-
-            if original.action().author() != &delete.hashed.content.author {
-                return Ok(ValidateCallbackResult::Invalid(
-                    "Only the author can delete a record".into(),
-                ));
-            }
-        }
-        _ => {}
-    }
-
     match op.flattened::<EntryTypes, LinkTypes>()? {
         FlatOp::CreateEntry(OpEntry::CreateEntry {
             app_entry: EntryTypes::AgentProfile(profile),
@@ -263,6 +240,32 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
             if review.subject_agent == *action.author() {
                 return Ok(ValidateCallbackResult::Invalid(
                     "Agents cannot publish reviews about themselves".into(),
+                ));
+            }
+
+            Ok(ValidateCallbackResult::Valid)
+        }
+
+        FlatOp::Link(OpLink::DeleteLink {
+            original_action,
+            action,
+            ..
+        }) => {
+            if action.author() != original_action.author() {
+                return Ok(ValidateCallbackResult::Invalid(
+                    "Only the link author can delete a link".into(),
+                ));
+            }
+
+            Ok(ValidateCallbackResult::Valid)
+        }
+
+        FlatOp::Delete(OpDelete { action }) => {
+            let original_record = must_get_valid_record(action.deletes_address.clone())?;
+
+            if action.author() != original_record.action().author() {
+                return Ok(ValidateCallbackResult::Invalid(
+                    "Only the author can delete a record".into(),
                 ));
             }
 
