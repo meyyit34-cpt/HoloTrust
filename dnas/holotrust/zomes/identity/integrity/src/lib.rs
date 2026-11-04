@@ -1,4 +1,5 @@
 use hdi::prelude::*;
+
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -57,6 +58,7 @@ pub fn validate_profile(profile: &AgentProfile) -> Result<(), String> {
         if description.chars().count() > 280 {
             return Err("Description cannot exceed 280 characters".into());
         }
+
         if description.chars().any(char::is_control) {
             return Err("Description contains invalid control characters".into());
         }
@@ -78,6 +80,7 @@ pub fn validate_review(review: &ReputationReview) -> Result<(), String> {
         if comment.chars().count() > 500 {
             return Err("Review comment cannot exceed 500 characters".into());
         }
+
         if comment.chars().any(char::is_control) {
             return Err("Review comment contains invalid control characters".into());
         }
@@ -108,6 +111,29 @@ fn validate_profile_update(
 
 #[hdk_extern]
 pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
+    match &op {
+        Op::RegisterDeleteLink(RegisterDeleteLink {
+            delete_link,
+            create_link,
+        }) => {
+            if delete_link.author != create_link.author {
+                return Ok(ValidateCallbackResult::Invalid(
+                    "Only the link author can delete a link".into(),
+                ));
+            }
+        }
+        Op::RegisterDelete(RegisterDelete { delete }) => {
+            let original = must_get_action(delete.hashed.content.deletes_address.clone())?;
+
+            if original.action().author() != &delete.hashed.content.author {
+                return Ok(ValidateCallbackResult::Invalid(
+                    "Only the author can delete a record".into(),
+                ));
+            }
+        }
+        _ => {}
+    }
+
     match op.flattened::<EntryTypes, LinkTypes>()? {
         FlatOp::CreateEntry(OpEntry::CreateEntry {
             app_entry: EntryTypes::AgentProfile(profile),
