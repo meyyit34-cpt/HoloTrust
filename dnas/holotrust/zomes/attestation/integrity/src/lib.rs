@@ -106,13 +106,9 @@ fn validate_no_duplicate_revocation(
     previous_action_hash: ActionHash,
     revocation: &AttestationRevocation,
 ) -> ExternResult<ValidateCallbackResult> {
-    let revocation_entry_type =
-        EntryType::App(UnitEntryTypes::AttestationRevocation.try_into()?);
+    let revocation_entry_type = EntryType::App(UnitEntryTypes::AttestationRevocation.try_into()?);
 
-    let activity = must_get_agent_activity(
-        author,
-        ChainFilter::new(previous_action_hash),
-    )?;
+    let activity = must_get_agent_activity(author, ChainFilter::new(previous_action_hash))?;
 
     for item in activity {
         let previous_action = &item.action.hashed.content;
@@ -187,11 +183,7 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
                 ));
             };
 
-            validate_no_duplicate_revocation(
-                op_author,
-                previous_action_hash,
-                &revocation,
-            )
+            validate_no_duplicate_revocation(op_author, previous_action_hash, &revocation)
         }
 
         FlatOp::Update(OpUpdate::Entry {
