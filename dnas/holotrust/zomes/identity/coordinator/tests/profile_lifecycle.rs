@@ -5,7 +5,8 @@ use identity_integrity::AgentType;
 use std::path::PathBuf;
 
 async fn setup_single_agent() -> (SweetConductorBatch, Vec<SweetApp>) {
-    let dna_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../workdir/holotrust.dna");
+    let dna_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../../workdir/holotrust.dna");
 
     assert!(
         dna_path.exists(),
@@ -24,12 +25,12 @@ async fn setup_single_agent() -> (SweetConductorBatch, Vec<SweetApp>) {
         .await
         .expect("Failed to install app");
 
-    (conductors, apps)
+    (conductors, apps.into())
 }
 
 #[tokio::test(flavor = "multi_thread")]
 async fn invalid_profile_updates_do_not_replace_latest_profile() {
-    let (mut conductors, apps) = setup_single_agent().await;
+    let (conductors, apps) = setup_single_agent().await;
     let zome = apps[0].cells()[0].zome("identity_coordinator");
 
     let original_hash: ActionHash = conductors[0]
@@ -90,7 +91,7 @@ async fn invalid_profile_updates_do_not_replace_latest_profile() {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn duplicate_profile_creation_is_rejected_and_original_remains_available() {
-    let (mut conductors, apps) = setup_single_agent().await;
+    let (conductors, apps) = setup_single_agent().await;
     let zome = apps[0].cells()[0].zome("identity_coordinator");
 
     let original_hash: ActionHash = conductors[0]
