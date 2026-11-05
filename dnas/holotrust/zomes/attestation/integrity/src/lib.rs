@@ -47,6 +47,7 @@ pub enum EntryTypes {
 pub enum LinkTypes {
     SubjectToAttestation,
     IssuerToAttestation,
+    AttestationToRevocation,
 }
 
 pub fn validate_attestation(attestation: &Attestation) -> Result<(), String> {
@@ -185,6 +186,80 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
 
             validate_no_duplicate_revocation(op_author, previous_action_hash, &revocation)
         }
+
+        FlatOp::Link(OpLink::CreateLink {
+            link_type: LinkTypes::AttestationToRevocation,
+            action,
+        }) => {
+            let Some(attestation_hash) =
+                action.base_address.clone().into_action_hash()
+            else {
+                return Ok(ValidateCallbackResult::Invalid(
+                    "Revocation link base must be an attestation action hash".into(),
+                ));
+            };
+
+            let Some(revocation_hash) =
+                action.target_address.clone().into_action_hash()
+            else {
+                return Ok(ValidateCallbackResult::Invalid(
+                    "Revocation link target must be a revocation action hash".into(),
+                ));
+            };
+
+            let original = must_get_valid_record(attestation_hash.clone())?;
+
+            let attestation = original
+                .entry()
+                .to_app_option::<Attestation>()
+                .map_err(|error| wasm_error!(WasmErrorInner::Guest(error.to_string())))?;
+
+            if attestation.is_none() {
+                return Ok(ValidateCallbackResult::Invalid(
+                    "Revocation link base must reference an attestation".into(),
+                ));
+            }
+
+            if original.action().author() != action.author() {
+                return Ok(ValidateCallbackResult::Invalid(
+                    "Only the original issuer can create the revocation link".into(),
+                ));
+            }
+
+            let revocation_record = must_get_valid_record(revocation_hash)?;
+
+            if revocation_record.action().author() != action.author() {
+                return Ok(ValidateCallbackResult::Invalid(
+                    "Revocation link author must match the revocation author".into(),
+                ));
+            }
+
+            let revocation = revocation_record
+                .entry()
+                .to_app_option::<AttestationRevocation>()
+                .map_err(|error| wasm_error!(WasmErrorInner::Guest(error.to_string())))?;
+
+            let Some(revocation) = revocation else {
+                return Ok(ValidateCallbackResult::Invalid(
+                    "Revocation link target must contain a revocation record".into(),
+                ));
+            };
+
+            if revocation.attestation != attestation_hash {
+                return Ok(ValidateCallbackResult::Invalid(
+                    "Revocation link must point to the attestation being revoked".into(),
+                ));
+            }
+
+            Ok(ValidateCallbackResult::Valid)
+        }
+
+        FlatOp::Link(OpLink::DeleteLink {
+            link_type: LinkTypes::AttestationToRevocation,
+            ..
+        }) => Ok(ValidateCallbackResult::Invalid(
+            "Revocation history links cannot be deleted".into(),
+        )),
 
         FlatOp::Update(OpUpdate::Entry {
             app_entry: EntryTypes::Attestation(_),
