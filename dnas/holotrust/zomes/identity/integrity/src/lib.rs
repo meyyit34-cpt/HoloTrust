@@ -1,3 +1,4 @@
+
 use hdi::prelude::*;
 use serde::{Deserialize, Serialize};
 
@@ -129,6 +130,23 @@ fn validate_review_history(
     Ok(ValidateCallbackResult::Valid)
 }
 
+// Compares the complete identity of two profile discovery links.
+fn same_profile_link<B: PartialEq, T: PartialEq, Z: PartialEq, L: PartialEq>(
+    previous_base: &B,
+    previous_target: &T,
+    previous_zome_index: &Z,
+    previous_link_type: &L,
+    candidate_base: &B,
+    candidate_target: &T,
+    candidate_zome_index: &Z,
+    candidate_link_type: &L,
+) -> bool {
+    previous_base == candidate_base
+        && previous_target == candidate_target
+        && previous_zome_index == candidate_zome_index
+        && previous_link_type == candidate_link_type
+}
+
 /// Rejects a second profile link to the same target on the same source chain.
 /// A profile update remains valid because it points to a new action hash.
 fn validate_profile_link_history(
@@ -146,11 +164,16 @@ fn validate_profile_link_history(
 
     for activity in previous_activity {
         if let ActionData::CreateLink(previous_link) = &activity.action.hashed.content.data {
-            if previous_link.base_address == candidate.base_address
-                && previous_link.target_address == candidate.target_address
-                && previous_link.zome_index == candidate.zome_index
-                && previous_link.link_type == candidate.link_type
-            {
+            if same_profile_link(
+                &previous_link.base_address,
+                &previous_link.target_address,
+                &previous_link.zome_index,
+                &previous_link.link_type,
+                &candidate.base_address,
+                &candidate.target_address,
+                &candidate.zome_index,
+                &candidate.link_type,
+            ) {
                 return Ok(ValidateCallbackResult::Invalid(
                     "An agent cannot create duplicate links to the same profile".into(),
                 ));
@@ -378,5 +401,54 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
         }
 
         _ => Ok(ValidateCallbackResult::Valid),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::same_profile_link;
+
+    #[test]
+    fn duplicate_profile_link_is_detected_but_new_profile_target_is_allowed() {
+        let base = "agent-A";
+        let original_target = "profile-v1";
+        let zome = "identity";
+        let link_type = "AgentToProfile";
+
+        // The exact same link must be detected as a duplicate.
+        assert!(same_profile_link(
+            &base,
+            &original_target,
+            &zome,
+            &link_type,
+            &base,
+            &original_target,
+            &zome,
+            &link_type,
+        ));
+
+        // A new profile action hash must remain valid after an update.
+        assert!(!same_profile_link(
+            &base,
+            &original_target,
+            &zome,
+            &link_type,
+            &base,
+            &"profile-v2",
+            &zome,
+            &link_type,
+        ));
+
+        // A different agent must not be treated as the same link.
+        assert!(!same_profile_link(
+            &base,
+            &original_target,
+            &zome,
+            &link_type,
+            &"agent-B",
+            &original_target,
+            &zome,
+            &link_type,
+        ));
     }
 }
