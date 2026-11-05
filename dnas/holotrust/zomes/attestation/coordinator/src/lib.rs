@@ -1,8 +1,7 @@
-
-use hdk::prelude::*;
 use attestation_integrity::{
     validate_attestation, Attestation, ClaimType, EntryTypes, EvidenceReference, LinkTypes,
 };
+use hdk::prelude::*;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct CreateAttestationInput {
@@ -87,10 +86,7 @@ pub fn get_attestations_for_subject(
     input: GetAttestationsForSubjectInput,
 ) -> ExternResult<Vec<Record>> {
     let links = get_links(
-        LinkQuery::try_new(
-            input.subject.clone(),
-            LinkTypes::SubjectToAttestation,
-        )?,
+        LinkQuery::try_new(input.subject.clone(), LinkTypes::SubjectToAttestation)?,
         GetStrategy::default(),
     )?;
 
@@ -114,9 +110,7 @@ pub fn get_attestations_for_subject(
             _ => continue,
         };
 
-        if attestation.subject != input.subject
-            || validate_attestation(&attestation).is_err()
-        {
+        if attestation.subject != input.subject || validate_attestation(&attestation).is_err() {
             continue;
         }
 
@@ -131,10 +125,7 @@ pub fn get_attestations_by_issuer(
     input: GetAttestationsByIssuerInput,
 ) -> ExternResult<Vec<Record>> {
     let links = get_links(
-        LinkQuery::try_new(
-            input.issuer.clone(),
-            LinkTypes::IssuerToAttestation,
-        )?,
+        LinkQuery::try_new(input.issuer.clone(), LinkTypes::IssuerToAttestation)?,
         GetStrategy::default(),
     )?;
 
