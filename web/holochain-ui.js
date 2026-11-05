@@ -213,3 +213,186 @@ async function connect() {
     setBusy(false);
   }
 }
+async function saveProfile(event) {
+  event.preventDefault();
+  event.stopImmediatePropagation();
+
+  if (!connected) {
+    notify("Önce Holochain ağına bağlanmalısın. Profil yerel tarayıcıya kaydedilmeyecek.");
+    return;
+  }
+  if (busy) return;
+
+  const displayName = $("displayName").value.trim();
+  const description = $("description").value.trim();
+  const agentType = getSelectedAgentType();
+
+  if (!displayName || displayName.length > 64) {
+    notify("Görünen ad 1–64 karakter arasında olmalıdır.");
+    return;
+  }
+  if (description.length > 280) {
+    notify("Açıklama en fazla 280 karakter olabilir.");
+    return;
+  }
+
+  setBusy(true);
+  if (saveButton) {
+    saveButton.textContent = "Ağa kaydediliyor...";
+  }
+
+  try {
+    // Karar yerel önbelleğe göre değil, DHT'deki gerçek profile göre verilir.
+    const current = await callIdentity("get_my_profile", null);
+
+    const payload = {
+      display_name: displayName,
+      agent_type: agentType,
+      description: description || null
+    };
+
+    let actionHash;
+    if (current) {
+      actionHash = await callIdentity("update_profile", {
+        action_hash: getRecordActionHash(current),
+        ...payload
+      });
+    } else {
+      actionHash = await callIdentity("create_profile", payload);
+    }
+
+    const profile = {
+      schemaVersion: 1,
+      displayName,
+      agentType,
+      description,
+      id: encodeHashToBase64(actionHash)
+    };
+
+    saveProfileCache(profile);
+    showProfile(profile);
+    setStatus("Profil Holochain ağına kaydedildi.", true);
+    notify("Profil başarıyla Holochain ağına gönderildi.");
+  } catch (error) {
+    console.error("HoloTrust profile write:", error);
+    const message = getErrorMessage(error);
+    if (message.includes("latest profile version")) {
+      notify("Profil başka bir yerden güncellenmiş. 'Profilimi ağdan oku' ile yenile, sonra tekrar dene.");
+    } else if (message.includes("already has a profile")) {
+      notify("Bu ajanın zaten profili var. Önce DHT üzerinden profilini oku.");
+    } else {
+      notify("Profil kaydedilemedi: " + message);
+    }
+  } finally {
+    setBusy(false);
+    if (saveButton) {
+      saveButton.textContent = localStorage.getItem(hashKey)
+        ? "Profili güncelle"
+        : "Profili kaydet";
+    }
+  }
+}
+
+async function lookupPublicProfile() {
+  const input = $("publicAgentHash");
+  const result = $("publicProfileResult");
+  const button = $("publicLookupButton");
+  if (!input || !result || !button) return;
+
+  const value = input.value.trim();
+  if (!value) {
+    result.textContent = "Görüntülemek istediğin ajanın Agent Public Key bilgisini gir.";
+    return;
+  }
+  if (!value.startsWith("uhCAk")) {
+    result.textContent =
+      "Bu bir Agent Public Key değil. Agent Public Key 'uhCAk' ile başlar. " +
+      "Profil ActionHash değerini değil, ajanın public key değerini gir.";
+    return;
+  }
+  if (!connected) {
+    result.textContent = "Önce Holochain ağına bağlanmalısın.";
+    return;
+  }
+
+  button.disabled = true;
+  result.textContent = "Profil ağda aranıyor...";
+
+  try {
+    const agentPubKey = decodeHashFromBase64(value);
+    const record = await callIdentity("get_profile", {
+      agent_pub_key: agentPubKey
+    });
+    if (!record) {
+      result.textContent = "Bu ajan için geçerli profil bulunamadı.";
+      return;
+    }
+    const entry = decodeRecordEntry(record);
+    const actionHash = getRecordActionHash(record);
+    const profile = normalizeProfile(entry, actionHash);
+    result.textContent =
+      "Görünen ad: " + profile.displayName +
+      "\nAjan türü: " + profile.agentType +
+      "\nAçıklama: " + (profile.description || "Yok") +
+      "\nProfil ActionHash: " + profile.id;
+  } catch (error) {
+    console.error("HoloTrust public lookup:", error);
+    result.textContent = "Profil sorgulanamadı: " + getErrorMessage(error);
+  } finally {
+    button.disabled = false;
+  }
+}
+
+// Ajan türü seçimleri
+document.querySelectorAll(".type").forEach(button => {
+  button.addEventListener("click", () => {
+    document.querySelectorAll(".type").forEach(item => {
+      item.classList.toggle("active", item === button);
+    });
+  });
+});
+
+connectButton?.addEventListener("click", connect);
+readButton?.addEventListener("click", readMyProfile);
+
+// Eski localStorage kayıt mekanizmasını capture aşamasında engelle.
+form?.addEventListener("submit", saveProfile, true);
+
+$("publicLookupButton")?.addEventListener("click", lookupPublicProfile);
+
+// Başkalarının seni bulabilmesi için Agent Public Key kopyalanır.
+$("copyButton")?.addEventListener("click", async () => {
+  if (!connection?.agentPubKey) {
+    notify("Önce Holochain ağına bağlanmalısın.");
+    return;
+  }
+  try {
+    await navigator.clipboard.writeText(
+      encodeHashToBase64(connection.agentPubKey)
+    );
+    notify("Agent Public Key kopyalandı. Başkaları seni bununla arayabilir.");
+  } catch (error) {
+    notify("Kopyalanamadı: " + getErrorMessage(error));
+  }
+});
+
+$("editButton")?.addEventListener("click", () => {
+  const cached = localStorage.getItem(storageKey);
+  if (!cached) {
+    notify("Düzenlenecek profil bulunamadı.");
+    return;
+  }
+  try {
+    populateForm(JSON.parse(cached));
+    notify("Profil düzenleme alanına yüklendi.");
+  } catch (error) {
+    notify("Profil verisi okunamadı: " + getErrorMessage(error));
+  }
+});
+
+setStatus("Holochain bağlantısı bekleniyor.");
+if (readButton) {
+  readButton.disabled = true;
+}
+
+// END OF FILE
