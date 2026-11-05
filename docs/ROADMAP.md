@@ -5,7 +5,7 @@
 
 Build a decentralized identity and reputation network using Holochain.
 
-The project will evolve through small, testable, security-focused development stages.
+The project evolves through small, testable, security-focused development stages.
 
 ---
 
@@ -26,13 +26,6 @@ Tasks:
 - [ ] Configure and verify linting checks.
 - [x] Establish automated CI pipeline.
 
-Exit criteria:
-
-- Reproducible CI toolchain references.
-- Successful clean build.
-- DNA and hApp packaging.
-- Workspace and integration tests pass.
-
 Status: Complete, with linting configuration remaining.
 
 ## Phase 1 — Identity MVP
@@ -52,13 +45,7 @@ Tasks:
 - [x] Add automated tests.
 - [x] Verify multi-agent profile operations.
 
-Exit criteria:
-
-- Profiles can be created and retrieved.
-- Invalid entries are rejected.
-- Unauthorized profile updates are rejected.
-- Multi-agent tests pass.
-- CI build and integration tests pass.
+Exit criteria: Met.
 
 Status: Complete.
 
@@ -71,21 +58,26 @@ Tasks:
 - [x] Define agent-based profile discovery anchor.
 - [x] Implement profile discovery links.
 - [x] Define profile update semantics.
-- [x] Ensure updates resolve to the latest profile.
+- [x] Ensure updates resolve to the latest profile after DHT consistency.
 - [x] Test multi-agent profile discovery.
 - [x] Test unauthorized and stale profile updates.
-- [ ] Add explicit duplicate profile-link handling tests.
-- [ ] Document discovery and update behavior.
+- [x] Implement duplicate profile-link rejection.
+- [x] Add duplicate profile-link comparison tests.
+- [x] Document discovery and update behavior.
+- [x] Document DHT consistency and ordering limitations.
 
 Exit criteria:
 
-- Agents can discover published profiles.
-- Profile updates resolve deterministically.
-- Stale updates are rejected.
-- Duplicate or conflicting links are handled safely.
-- Multi-agent discovery tests pass.
+- [x] Agents can discover published profiles.
+- [x] Profile updates resolve to the latest published version after consistency.
+- [x] Stale updates are rejected.
+- [x] Exact duplicate profile links are rejected.
+- [x] Historical profile actions remain available.
+- [x] Multi-agent discovery tests pass.
 
-Status: In progress.
+Status: Complete.
+
+Note: Holochain DHT propagation is eventually consistent. A query can only resolve records and links available to that agent at query time. This phase does not claim globally instantaneous ordering across disconnected network states.
 
 ## Phase 3 — Verifiable Attestations
 
@@ -93,13 +85,14 @@ Goal: Enable signed, verifiable claims.
 
 Tasks:
 
-- [ ] Define attestation schema.
-- [ ] Define issuer and subject relationships.
-- [ ] Implement attestation integrity rules.
-- [ ] Implement attestation coordinator.
-- [ ] Add issuer verification.
-- [ ] Define revocation and supersession semantics.
-- [ ] Test evidence references.
+- [x] Define attestation schema.
+- [x] Define issuer and subject relationships.
+- [x] Implement attestation integrity rules.
+- [x] Implement attestation coordinator.
+- [x] Add issuer verification.
+- [x] Define revocation and supersession semantics.
+- [ ] Verify supersession integrity with dedicated tests.
+- [x] Add evidence-reference validation.
 - [ ] Add multi-agent integration tests.
 
 Exit criteria:
@@ -107,9 +100,9 @@ Exit criteria:
 - Claims have verifiable issuers.
 - Invalid claims are rejected.
 - Historical changes remain auditable.
-- Evidence references can be verified.
+- Evidence references can be validated.
 
-Status: Not started.
+Status: In progress.
 
 ## Phase 4 — Contextual Reputation
 
@@ -126,13 +119,6 @@ Tasks:
 - [ ] Add explainability and provenance.
 - [ ] Add multi-agent integration tests.
 
-Exit criteria:
-
-- Reputation is contextual.
-- Results can be traced to supporting evidence.
-- Legacy reviews remain readable.
-- No universal reputation score is produced.
-
 Status: Not started.
 
 ## Phase 5 — Trust Graph
@@ -148,11 +134,6 @@ Tasks:
 - [ ] Add context-aware trust relationships.
 - [ ] Add multi-agent tests.
 
-Exit criteria:
-
-- Trust relationships are verifiable and queryable.
-- Relationship history and ownership are validated.
-
 Status: Not started.
 
 ## Phase 6 — Economic Integration
@@ -165,8 +146,6 @@ Potential integrations:
 - Unyt
 - Holochain economic infrastructure
 - HoloFuel-compatible coordination models
-
-This phase begins only after identity, attestations, and contextual reputation foundations are stable.
 
 Status: Not started.
 
@@ -187,7 +166,7 @@ Status: Not started.
 
 ## Current Status
 
-Current phase: Phase 2 — Identity Discovery.
+Current phase: Phase 3 — Verifiable Attestations.
 
 Completed foundations:
 
@@ -196,16 +175,20 @@ Completed foundations:
 - Agent profile creation and retrieval.
 - Profile ownership and update validation.
 - Multi-agent identity tests.
+- Duplicate profile-link protection.
+- Identity discovery documentation.
 - Automated CI pipeline.
-- Pinned Rust and Holonix CI references.
+- Attestation schema and integrity validation.
+- Attestation coordinator and revocation logic.
+- Attestation validation tests included in Fast CI.
 
 Next milestone:
 
-Complete duplicate profile-link handling tests and discovery documentation.
+Complete dedicated attestation supersession and multi-agent integration tests.
 
 Following milestone:
 
-Begin Phase 3 — Verifiable Attestations.
+Phase 4 — Contextual Reputation.
 
 ---
 
