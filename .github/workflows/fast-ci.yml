@@ -1,0 +1,59 @@
+name: HoloTrust Fast CI
+
+on:
+  push:
+    branches:
+      - main
+      - security/review-integrity
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: holotrust-fast-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  format:
+    name: Fast formatting checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Install Rust formatter
+        uses: dtolnay/rust-toolchain@1.99.1
+        with:
+          components: rustfmt
+
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+
+  unit-tests:
+    name: Workspace unit tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@1.99.1
+
+      - name: Cache Cargo dependencies and build outputs
+        uses: actions/cache@v6
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-fast-${{ hashFiles('**/Cargo.toml', '**/Cargo.lock', 'rust-toolchain.toml', 'rust-toolchain') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-fast-
+            ${{ runner.os }}-cargo-
+
+      - name: Run all workspace unit tests
+        run: cargo test --workspace
