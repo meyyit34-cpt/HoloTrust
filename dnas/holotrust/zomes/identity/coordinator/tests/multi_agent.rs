@@ -9,8 +9,7 @@ use std::path::PathBuf;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn multi_agent_identity_and_reputation_security() {
-    let dna_path =
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../workdir/holotrust.dna");
+    let dna_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../workdir/holotrust.dna");
 
     assert!(
         dna_path.exists(),
