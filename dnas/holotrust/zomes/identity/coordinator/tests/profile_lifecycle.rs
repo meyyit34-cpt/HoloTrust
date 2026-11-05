@@ -6,8 +6,7 @@ use std::path::PathBuf;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn invalid_profile_updates_do_not_replace_latest_profile() {
-    let dna_path =
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../workdir/holotrust.dna");
+    let dna_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../workdir/holotrust.dna");
 
     assert!(
         dna_path.exists(),
