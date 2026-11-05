@@ -1,0 +1,13 @@
+[package]
+name = "attestation_coordinator"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+hdk = { workspace = true }
+serde = { workspace = true }
+attestation_integrity = { path = "../integrity" }
