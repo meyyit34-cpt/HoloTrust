@@ -178,7 +178,12 @@ pub fn revoke_attestation(input: RevokeAttestationInput) -> ExternResult<ActionH
         )));
     };
 
-    if record.entry().to_app_option::<Attestation>()?.is_none() {
+    let target = record
+        .entry()
+        .to_app_option::<Attestation>()
+        .map_err(|error| wasm_error!(WasmErrorInner::Guest(error.to_string())))?;
+
+    if target.is_none() {
         return Err(wasm_error!(WasmErrorInner::Guest(
             "Target record is not an attestation".into(),
         )));
