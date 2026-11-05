@@ -188,8 +188,7 @@ fn validate_contextual_review_history(
         ));
     };
 
-    let review_entry_type =
-        EntryType::App(UnitEntryTypes::ContextualReputationReview.try_into()?);
+    let review_entry_type = EntryType::App(UnitEntryTypes::ContextualReputationReview.try_into()?);
 
     let previous_activity = must_get_agent_activity(author.clone(), ChainFilter::new(chain_top))?;
 
