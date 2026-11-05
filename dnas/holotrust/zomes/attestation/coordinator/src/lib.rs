@@ -219,9 +219,7 @@ pub fn revoke_attestation(input: RevokeAttestationInput) -> ExternResult<ActionH
 }
 
 #[hdk_extern]
-pub fn resolve_attestation_status(
-    input: GetAttestationInput,
-) -> ExternResult<AttestationStatus> {
+pub fn resolve_attestation_status(input: GetAttestationInput) -> ExternResult<AttestationStatus> {
     let Some(record) = get(input.action_hash.clone(), GetOptions::default())? else {
         return Err(wasm_error!(WasmErrorInner::Guest(
             "Attestation not found".into(),
