@@ -88,6 +88,55 @@ pub fn validate_review(review: &ReputationReview) -> Result<(), String> {
     Ok(())
 }
 
+/// Checks the review author's previous source-chain activity.
+///
+/// This check runs while validating the CreateEntry operation itself.
+/// It deliberately does not rely on DHT link queries, whose results can
+/// differ between validators and can be incomplete during propagation.
+fn validate_review_history(
+    author: &AgentPubKey,
+    previous_action: Option<ActionHash>,
+    subject_agent: &AgentPubKey,
+) -> ExternResult<ValidateCallbackResult> {
+    let Some(chain_top) = previous_action else {
+        return Ok(ValidateCallbackResult::Invalid(
+            "A reputation review must follow an existing source-chain action".into(),
+        ));
+    };
+
+    let review_entry_type =
+        EntryType::App(UnitEntryTypes::ReputationReview.try_into()?);
+
+    let previous_activity =
+        must_get_agent_activity(author.clone(), ChainFilter::new(chain_top))?;
+
+    for activity in previous_activity {
+        if activity.action.hashed.content.entry_type() != Some(&review_entry_type) {
+            continue;
+        }
+
+        let previous_record =
+            must_get_valid_record(activity.action.hashed.hash.clone())?;
+
+        let previous_review = previous_record
+            .entry()
+            .to_app_option::<ReputationReview>()
+            .map_err(|e| wasm_error!(WasmErrorInner::Guest(e.to_string())))?;
+
+        let Some(previous_review) = previous_review else {
+            continue;
+        };
+
+        if previous_review.subject_agent == *subject_agent {
+            return Ok(ValidateCallbackResult::Invalid(
+                "An agent can publish only one reputation review per subject".into(),
+            ));
+        }
+    }
+
+    Ok(ValidateCallbackResult::Valid)
+}
+
 fn validate_profile_update(
     update_author: &AgentPubKey,
     original_action_hash: ActionHash,
@@ -129,10 +178,15 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
                 ));
             }
 
-            match validate_review(&review) {
-                Ok(()) => Ok(ValidateCallbackResult::Valid),
-                Err(reason) => Ok(ValidateCallbackResult::Invalid(reason)),
+            if let Err(reason) = validate_review(&review) {
+                return Ok(ValidateCallbackResult::Invalid(reason));
             }
+
+            validate_review_history(
+                action.author(),
+                action.prev_action().cloned(),
+                &review.subject_agent,
+            )
         }
 
         FlatOp::Update(OpUpdate::Entry {
