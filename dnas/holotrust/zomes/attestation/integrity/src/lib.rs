@@ -1,0 +1,202 @@
+use hdi::prelude::*;
+use serde::{Deserialize, Serialize};
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub enum ClaimType {
+    Skill,
+    Experience,
+    ServiceCompletion,
+    Membership,
+    Credential,
+    Other,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub enum EvidenceReference {
+    Action(ActionHash),
+    Entry(EntryHash),
+    External {
+        url: String,
+        sha256: String,
+    },
+}
+
+#[hdk_entry_helper]
+pub struct Attestation {
+    pub schema_version: u8,
+    pub subject: AgentPubKey,
+    pub claim_type: ClaimType,
+    pub claim: String,
+    pub evidence: Vec<EvidenceReference>,
+    pub expires_at: Option<Timestamp>,
+    pub supersedes: Option<ActionHash>,
+}
+
+#[hdk_entry_helper]
+pub struct AttestationRevocation {
+    pub schema_version: u8,
+    pub attestation: ActionHash,
+    pub reason: Option<String>,
+}
+
+#[hdk_entry_types]
+#[unit_enum(UnitEntryTypes)]
+pub enum EntryTypes {
+    Attestation(Attestation),
+    AttestationRevocation(AttestationRevocation),
+}
+
+#[hdk_link_types]
+pub enum LinkTypes {
+    SubjectToAttestation,
+    IssuerToAttestation,
+}
+
+pub fn validate_attestation(
+    attestation: &Attestation,
+) -> Result<(), String> {
+    if attestation.schema_version != 1 {
+        return Err("Unsupported attestation schema version".into());
+    }
+
+    let claim = attestation.claim.trim();
+
+    if claim.is_empty() || claim.chars().count() > 1000 {
+        return Err("Claim must be 1-1000 characters".into());
+    }
+
+    if claim.chars().any(char::is_control) {
+        return Err("Claim contains invalid control characters".into());
+    }
+
+    if attestation.evidence.len() > 5 {
+        return Err("An attestation can contain at most 5 evidence references".into());
+    }
+
+    for evidence in &attestation.evidence {
+        if let EvidenceReference::External { url, sha256 } = evidence {
+            if url.len() > 2048 || !url.starts_with("https://") {
+                return Err("External evidence must use a valid HTTPS URL".into());
+            }
+
+            if sha256.len() != 64
+                || !sha256.chars().all(|c| c.is_ascii_hexdigit())
+            {
+                return Err("Evidence digest must be a 64-character SHA-256 hash".into());
+            }
+        }
+    }
+
+    Ok(())
+}
+
+pub fn validate_revocation(
+    revocation: &AttestationRevocation,
+) -> Result<(), String> {
+    if revocation.schema_version != 1 {
+        return Err("Unsupported revocation schema version".into());
+    }
+
+    if let Some(reason) = &revocation.reason {
+        if reason.chars().count() > 500 {
+            return Err("Revocation reason cannot exceed 500 characters".into());
+        }
+
+        if reason.chars().any(char::is_control) {
+            return Err("Revocation reason contains invalid control characters".into());
+        }
+    }
+
+    Ok(())
+}
+
+#[hdk_extern]
+pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
+    match op.flattened::<EntryTypes, LinkTypes>()? {
+        FlatOp::CreateEntry(OpEntry::CreateEntry {
+            app_entry: EntryTypes::Attestation(attestation),
+            ..
+        }) => match validate_attestation(&attestation) {
+            Ok(()) => Ok(ValidateCallbackResult::Valid),
+            Err(reason) => Ok(ValidateCallbackResult::Invalid(reason)),
+        },
+
+        FlatOp::CreateEntry(OpEntry::CreateEntry {
+            app_entry: EntryTypes::AttestationRevocation(revocation),
+            action,
+        }) => {
+            if let Err(reason) = validate_revocation(&revocation) {
+                return Ok(ValidateCallbackResult::Invalid(reason));
+            }
+
+            let original = must_get_valid_record(
+                revocation.attestation.clone(),
+            )?;
+
+            let original_attestation = original
+                .entry()
+                .to_app_option::<Attestation>()
+                .map_err(|e| {
+                    wasm_error!(WasmErrorInner::Guest(e.to_string()))
+                })?;
+
+            if original_attestation.is_none() {
+                return Ok(ValidateCallbackResult::Invalid(
+                    "Revocation target must be an attestation".into(),
+                ));
+            }
+
+            if action.author() != original.action().author() {
+                return Ok(ValidateCallbackResult::Invalid(
+                    "Only the original issuer can revoke an attestation".into(),
+                ));
+            }
+
+            Ok(ValidateCallbackResult::Valid)
+        }
+
+        FlatOp::Update(OpUpdate::Entry {
+            app_entry: EntryTypes::Attestation(_),
+            ..
+        }) => Ok(ValidateCallbackResult::Invalid(
+            "Published attestations cannot be edited".into(),
+        )),
+
+        FlatOp::Update(OpUpdate::Entry {
+            app_entry: EntryTypes::AttestationRevocation(_),
+            ..
+        }) => Ok(ValidateCallbackResult::Invalid(
+            "Revocation records cannot be edited".into(),
+        )),
+
+        FlatOp::Delete(OpDelete { action }) => {
+            let original = must_get_valid_record(
+                action.deletes_address.clone(),
+            )?;
+
+            let attestation = original
+                .entry()
+                .to_app_option::<Attestation>()
+                .map_err(|e| {
+                    wasm_error!(WasmErrorInner::Guest(e.to_string()))
+                })?;
+
+            let revocation = original
+                .entry()
+                .to_app_option::<AttestationRevocation>()
+                .map_err(|e| {
+                    wasm_error!(WasmErrorInner::Guest(e.to_string()))
+                })?;
+
+            if attestation.is_some() || revocation.is_some() {
+                return Ok(ValidateCallbackResult::Invalid(
+                    "Published attestation records cannot be deleted".into(),
+                ));
+            }
+
+            Ok(ValidateCallbackResult::Valid)
+        }
+
+        _ => Ok(ValidateCallbackResult::Valid),
+    }
+}
