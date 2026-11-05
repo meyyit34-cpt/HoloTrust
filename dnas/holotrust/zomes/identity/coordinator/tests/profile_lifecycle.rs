@@ -6,8 +6,7 @@ use identity_integrity::AgentType;
 use std::path::PathBuf;
 
 async fn setup_single_agent() -> (SweetConductorBatch, Vec<SweetApp>) {
-    let dna_path =
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../workdir/holotrust.dna");
+    let dna_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../workdir/holotrust.dna");
 
     assert!(
         dna_path.exists(),
