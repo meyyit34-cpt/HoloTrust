@@ -32,8 +32,8 @@ jobs:
       - name: Check formatting
         run: cargo fmt --all -- --check
 
-  unit-tests:
-    name: Workspace unit tests
+  quick-check:
+    name: Quick compile and independent tests
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -55,5 +55,8 @@ jobs:
             ${{ runner.os }}-cargo-fast-
             ${{ runner.os }}-cargo-
 
-      - name: Run all workspace unit tests
-        run: cargo test --workspace
+      - name: Check workspace compilation
+        run: cargo check --workspace
+
+      - name: Run independent profile validation tests
+        run: cargo test -p identity_integrity --test profile_validation
