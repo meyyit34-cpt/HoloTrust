@@ -9,6 +9,16 @@ pub enum AgentType {
     Service,
 }
 
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub enum ReputationDomain {
+    Commerce,
+    Professional,
+    Hospitality,
+    Technical,
+    Community,
+    Reliability,
+}
+
 #[hdk_entry_helper]
 pub struct AgentProfile {
     pub schema_version: u8,
@@ -25,17 +35,28 @@ pub struct ReputationReview {
     pub comment: Option<String>,
 }
 
+#[hdk_entry_helper]
+pub struct ContextualReputationReview {
+    pub schema_version: u8,
+    pub subject_agent: AgentPubKey,
+    pub domain: ReputationDomain,
+    pub rating: u8,
+    pub comment: Option<String>,
+}
+
 #[hdk_entry_types]
 #[unit_enum(UnitEntryTypes)]
 pub enum EntryTypes {
     AgentProfile(AgentProfile),
     ReputationReview(ReputationReview),
+    ContextualReputationReview(ContextualReputationReview),
 }
 
 #[hdk_link_types]
 pub enum LinkTypes {
     AgentToProfile,
     AgentToReview,
+    AgentToContextualReview,
 }
 
 pub fn validate_profile(profile: &AgentProfile) -> Result<(), String> {
@@ -88,11 +109,32 @@ pub fn validate_review(review: &ReputationReview) -> Result<(), String> {
     Ok(())
 }
 
-/// Checks the review author's previous source-chain activity.
-///
-/// This check runs while validating the CreateEntry operation itself.
-/// It deliberately does not rely on DHT link queries, whose results can
-/// differ between validators and can be incomplete during propagation.
+pub fn validate_contextual_review(
+    review: &ContextualReputationReview,
+) -> Result<(), String> {
+    if review.schema_version != 1 {
+        return Err("Unsupported contextual review schema version".into());
+    }
+
+    if !(1..=5).contains(&review.rating) {
+        return Err("Rating must be between 1 and 5".into());
+    }
+
+    if let Some(comment) = &review.comment {
+        if comment.chars().count() > 500 {
+            return Err("Review comment cannot exceed 500 characters".into());
+        }
+
+        if comment.chars().any(char::is_control) {
+            return Err("Review comment contains invalid control characters".into());
+        }
+    }
+
+    Ok(())
+}
+
+/// Checks the legacy review author's previous source-chain activity.
+/// Legacy reviews remain separate from contextual reviews.
 fn validate_review_history(
     author: &AgentPubKey,
     previous_action: Option<ActionHash>,
@@ -106,7 +148,8 @@ fn validate_review_history(
 
     let review_entry_type = EntryType::App(UnitEntryTypes::ReputationReview.try_into()?);
 
-    let previous_activity = must_get_agent_activity(author.clone(), ChainFilter::new(chain_top))?;
+    let previous_activity =
+        must_get_agent_activity(author.clone(), ChainFilter::new(chain_top))?;
 
     for activity in previous_activity {
         if activity.action.hashed.content.entry_type() != Some(&review_entry_type) {
@@ -127,6 +170,54 @@ fn validate_review_history(
         if previous_review.subject_agent == *subject_agent {
             return Ok(ValidateCallbackResult::Invalid(
                 "An agent can publish only one reputation review per subject".into(),
+            ));
+        }
+    }
+
+    Ok(ValidateCallbackResult::Valid)
+}
+
+/// Checks contextual reviews on the author's previous source-chain activity.
+/// A duplicate is defined by the combination of author, subject and domain.
+fn validate_contextual_review_history(
+    author: &AgentPubKey,
+    previous_action: Option<ActionHash>,
+    subject_agent: &AgentPubKey,
+    domain: &ReputationDomain,
+) -> ExternResult<ValidateCallbackResult> {
+    let Some(chain_top) = previous_action else {
+        return Ok(ValidateCallbackResult::Invalid(
+            "A contextual review must follow an existing source-chain action".into(),
+        ));
+    };
+
+    let review_entry_type =
+        EntryType::App(UnitEntryTypes::ContextualReputationReview.try_into()?);
+
+    let previous_activity =
+        must_get_agent_activity(author.clone(), ChainFilter::new(chain_top))?;
+
+    for activity in previous_activity {
+        if activity.action.hashed.content.entry_type() != Some(&review_entry_type) {
+            continue;
+        }
+
+        let previous_record = must_get_valid_record(activity.action.hashed.hash.clone())?;
+
+        let previous_review = previous_record
+            .entry()
+            .to_app_option::<ContextualReputationReview>()
+            .map_err(|e| wasm_error!(WasmErrorInner::Guest(e.to_string())))?;
+
+        let Some(previous_review) = previous_review else {
+            continue;
+        };
+
+        if previous_review.subject_agent == *subject_agent
+            && previous_review.domain == *domain
+        {
+            return Ok(ValidateCallbackResult::Invalid(
+                "An agent can publish only one review per subject and domain".into(),
             ));
         }
     }
@@ -186,6 +277,28 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
             )
         }
 
+        FlatOp::CreateEntry(OpEntry::CreateEntry {
+            app_entry: EntryTypes::ContextualReputationReview(review),
+            action,
+        }) => {
+            if action.author() == &review.subject_agent {
+                return Ok(ValidateCallbackResult::Invalid(
+                    "Agents cannot review themselves".into(),
+                ));
+            }
+
+            if let Err(reason) = validate_contextual_review(&review) {
+                return Ok(ValidateCallbackResult::Invalid(reason));
+            }
+
+            validate_contextual_review_history(
+                action.author(),
+                action.prev_action().cloned(),
+                &review.subject_agent,
+                &review.domain,
+            )
+        }
+
         FlatOp::Update(OpUpdate::Entry {
             app_entry: EntryTypes::AgentProfile(profile),
             action,
@@ -200,6 +313,13 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
             ..
         }) => Ok(ValidateCallbackResult::Invalid(
             "Published reputation reviews cannot be edited".into(),
+        )),
+
+        FlatOp::Update(OpUpdate::Entry {
+            app_entry: EntryTypes::ContextualReputationReview(_),
+            ..
+        }) => Ok(ValidateCallbackResult::Invalid(
+            "Published contextual reviews cannot be edited".into(),
         )),
 
         FlatOp::Link(OpLink::CreateLink {
@@ -296,11 +416,72 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
             Ok(ValidateCallbackResult::Valid)
         }
 
+        FlatOp::Link(OpLink::CreateLink {
+            link_type: LinkTypes::AgentToContextualReview,
+            action,
+        }) => {
+            let Some(owner) = action.base_address.clone().into_agent_pub_key() else {
+                return Ok(ValidateCallbackResult::Invalid(
+                    "Contextual review link base must be an agent".into(),
+                ));
+            };
+
+            let Some(target) = action.target_address.clone().into_action_hash() else {
+                return Ok(ValidateCallbackResult::Invalid(
+                    "Contextual review link target must be an action hash".into(),
+                ));
+            };
+
+            let record = must_get_valid_record(target)?;
+
+            if record.action().author() != action.author() {
+                return Ok(ValidateCallbackResult::Invalid(
+                    "Contextual review link creator must be the review author".into(),
+                ));
+            }
+
+            let review = record
+                .entry()
+                .to_app_option::<ContextualReputationReview>()
+                .map_err(|e| wasm_error!(WasmErrorInner::Guest(e.to_string())))?;
+
+            let Some(review) = review else {
+                return Ok(ValidateCallbackResult::Invalid(
+                    "Contextual review link target must contain a contextual review".into(),
+                ));
+            };
+
+            if review.subject_agent != owner {
+                return Ok(ValidateCallbackResult::Invalid(
+                    "Contextual review link base must match the review subject".into(),
+                ));
+            }
+
+            if review.subject_agent == *action.author() {
+                return Ok(ValidateCallbackResult::Invalid(
+                    "Agents cannot publish contextual reviews about themselves".into(),
+                ));
+            }
+
+            if let Err(reason) = validate_contextual_review(&review) {
+                return Ok(ValidateCallbackResult::Invalid(reason));
+            }
+
+            Ok(ValidateCallbackResult::Valid)
+        }
+
         FlatOp::Link(OpLink::DeleteLink {
             link_type: LinkTypes::AgentToReview,
             ..
         }) => Ok(ValidateCallbackResult::Invalid(
             "Reputation review links cannot be deleted".into(),
+        )),
+
+        FlatOp::Link(OpLink::DeleteLink {
+            link_type: LinkTypes::AgentToContextualReview,
+            ..
+        }) => Ok(ValidateCallbackResult::Invalid(
+            "Contextual reputation review links cannot be deleted".into(),
         )),
 
         FlatOp::Link(OpLink::DeleteLink {
@@ -320,14 +501,25 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
         FlatOp::Delete(OpDelete { action }) => {
             let original_record = must_get_valid_record(action.deletes_address.clone())?;
 
-            let review = original_record
+            let legacy_review = original_record
                 .entry()
                 .to_app_option::<ReputationReview>()
                 .map_err(|e| wasm_error!(WasmErrorInner::Guest(e.to_string())))?;
 
-            if review.is_some() {
+            if legacy_review.is_some() {
                 return Ok(ValidateCallbackResult::Invalid(
                     "Published reputation reviews cannot be deleted".into(),
+                ));
+            }
+
+            let contextual_review = original_record
+                .entry()
+                .to_app_option::<ContextualReputationReview>()
+                .map_err(|e| wasm_error!(WasmErrorInner::Guest(e.to_string())))?;
+
+            if contextual_review.is_some() {
+                return Ok(ValidateCallbackResult::Invalid(
+                    "Published contextual reviews cannot be deleted".into(),
                 ));
             }
 
