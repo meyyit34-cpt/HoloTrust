@@ -1,5 +1,6 @@
 use attestation_integrity::{
-    validate_attestation, Attestation, ClaimType, EntryTypes, EvidenceReference, LinkTypes,
+    validate_attestation, validate_revocation, Attestation, AttestationRevocation, ClaimType,
+    EntryTypes, EvidenceReference, LinkTypes,
 };
 use hdk::prelude::*;
 
@@ -26,6 +27,12 @@ pub struct GetAttestationsForSubjectInput {
 #[derive(Serialize, Deserialize, Debug)]
 pub struct GetAttestationsByIssuerInput {
     pub issuer: AgentPubKey,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct RevokeAttestationInput {
+    pub attestation: ActionHash,
+    pub reason: Option<String>,
 }
 
 #[hdk_extern]
@@ -161,4 +168,30 @@ pub fn get_attestations_by_issuer(
     }
 
     Ok(records)
+}
+
+#[hdk_extern]
+pub fn revoke_attestation(input: RevokeAttestationInput) -> ExternResult<ActionHash> {
+    let Some(record) = get(input.attestation.clone(), GetOptions::default())? else {
+        return Err(wasm_error!(WasmErrorInner::Guest(
+            "Attestation not found".into(),
+        )));
+    };
+
+    if record.entry().to_app_option::<Attestation>()?.is_none() {
+        return Err(wasm_error!(WasmErrorInner::Guest(
+            "Target record is not an attestation".into(),
+        )));
+    }
+
+    let revocation = AttestationRevocation {
+        schema_version: 1,
+        attestation: input.attestation,
+        reason: input.reason,
+    };
+
+    validate_revocation(&revocation)
+        .map_err(|reason| wasm_error!(WasmErrorInner::Guest(reason)))?;
+
+    create_entry(EntryTypes::AttestationRevocation(revocation))
 }
