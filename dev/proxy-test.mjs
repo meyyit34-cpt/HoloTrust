@@ -24,12 +24,10 @@ async function main() {
   const info = await fetch(BASE + "/hc/info");
   check(info.ok, "GET /hc/info responds");
   const infoBody = decode(new Uint8Array(await info.arrayBuffer()));
+  const agentKey = infoBody.agent_pub_key;
+  check(agentKey instanceof Uint8Array, "agent public key arrives as Uint8Array");
   check(
-    infoBody.agent_pub_key instanceof Uint8Array,
-    "agent public key arrives as Uint8Array"
-  );
-  check(
-    encodeHashToBase64(infoBody.agent_pub_key).startsWith("uhCAk"),
+    encodeHashToBase64(agentKey).startsWith("uhCAk"),
     "agent public key encodes with uhCAk prefix"
   );
 
@@ -53,6 +51,35 @@ async function main() {
   check(
     updated.body.result instanceof Uint8Array,
     "update_profile returns an action hash"
+  );
+
+  const reviews = await call("get_reviews", { subject_agent: agentKey });
+  check(reviews.status === 200, "get_reviews via proxy returns 200");
+  check(
+    Array.isArray(reviews.body.result) && reviews.body.result.length === 0,
+    "get_reviews returns an empty list for an unreviewed agent"
+  );
+
+  const summary = await call("get_reputation_summary", {
+    subject_agent: agentKey
+  });
+  check(summary.status === 200, "get_reputation_summary returns 200");
+  check(
+    summary.body.result.review_count === 0 &&
+      summary.body.result.average_rating === 0,
+    "summary is 0 reviews and 0 average"
+  );
+
+  const selfReview = await call("create_review", {
+    subject_agent: agentKey,
+    rating: 5,
+    comment: null
+  });
+  console.log("PROXY INFO: self review error = " + selfReview.body.error);
+  check(selfReview.status === 500, "self review is rejected via proxy");
+  check(
+    String(selfReview.body.error).includes("cannot review"),
+    "self review error message reaches the client"
   );
 
   const forbidden = await call("evil_function", null);
