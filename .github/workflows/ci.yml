@@ -121,7 +121,18 @@ jobs:
               kill $SANDBOX_PID || true
               exit 1
             fi
-            kill $SANDBOX_PID || true
+            node dev/dev-server.mjs > dev-server.log 2>&1 &
+            DEV_PID=$!
+            for i in $(seq 1 30); do
+              if curl -sf http://127.0.0.1:8080/hc/info > /dev/null; then break; fi
+              sleep 1
+            done
+            if ! node dev/proxy-test.mjs; then
+              tail -n 80 dev-server.log || true
+              kill $DEV_PID $SANDBOX_PID || true
+              exit 1
+            fi
+            kill $DEV_PID $SANDBOX_PID || true
           '
 
       - name: Upload hApp bundle
