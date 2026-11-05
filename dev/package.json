@@ -1,9 +1,10 @@
+
 {
   "name": "holotrust-dev",
   "private": true,
   "type": "module",
   "dependencies": {
-    "@holochain/client": "0.21.0",
+    "@holochain/client": "0.21.1",
     "@msgpack/msgpack": "3.1.2"
   }
 }
