@@ -15,10 +15,7 @@ pub enum ClaimType {
 pub enum EvidenceReference {
     Action(ActionHash),
     Entry(EntryHash),
-    External {
-        url: String,
-        sha256: String,
-    },
+    External { url: String, sha256: String },
 }
 
 #[hdk_entry_helper]
@@ -52,9 +49,7 @@ pub enum LinkTypes {
     IssuerToAttestation,
 }
 
-pub fn validate_attestation(
-    attestation: &Attestation,
-) -> Result<(), String> {
+pub fn validate_attestation(attestation: &Attestation) -> Result<(), String> {
     if attestation.schema_version != 1 {
         return Err("Unsupported attestation schema version".into());
     }
@@ -79,9 +74,7 @@ pub fn validate_attestation(
                 return Err("External evidence must use a valid HTTPS URL".into());
             }
 
-            if sha256.len() != 64
-                || !sha256.chars().all(|c| c.is_ascii_hexdigit())
-            {
+            if sha256.len() != 64 || !sha256.chars().all(|c| c.is_ascii_hexdigit()) {
                 return Err("Evidence digest must be a 64-character SHA-256 hash".into());
             }
         }
@@ -90,9 +83,7 @@ pub fn validate_attestation(
     Ok(())
 }
 
-pub fn validate_revocation(
-    revocation: &AttestationRevocation,
-) -> Result<(), String> {
+pub fn validate_revocation(revocation: &AttestationRevocation) -> Result<(), String> {
     if revocation.schema_version != 1 {
         return Err("Unsupported revocation schema version".into());
     }
@@ -129,16 +120,12 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
                 return Ok(ValidateCallbackResult::Invalid(reason));
             }
 
-            let original = must_get_valid_record(
-                revocation.attestation.clone(),
-            )?;
+            let original = must_get_valid_record(revocation.attestation.clone())?;
 
             let original_attestation = original
                 .entry()
                 .to_app_option::<Attestation>()
-                .map_err(|e| {
-                    wasm_error!(WasmErrorInner::Guest(e.to_string()))
-                })?;
+                .map_err(|e| wasm_error!(WasmErrorInner::Guest(e.to_string())))?;
 
             if original_attestation.is_none() {
                 return Ok(ValidateCallbackResult::Invalid(
@@ -170,23 +157,17 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
         )),
 
         FlatOp::Delete(OpDelete { action }) => {
-            let original = must_get_valid_record(
-                action.deletes_address.clone(),
-            )?;
+            let original = must_get_valid_record(action.deletes_address.clone())?;
 
             let attestation = original
                 .entry()
                 .to_app_option::<Attestation>()
-                .map_err(|e| {
-                    wasm_error!(WasmErrorInner::Guest(e.to_string()))
-                })?;
+                .map_err(|e| wasm_error!(WasmErrorInner::Guest(e.to_string())))?;
 
             let revocation = original
                 .entry()
                 .to_app_option::<AttestationRevocation>()
-                .map_err(|e| {
-                    wasm_error!(WasmErrorInner::Guest(e.to_string()))
-                })?;
+                .map_err(|e| wasm_error!(WasmErrorInner::Guest(e.to_string())))?;
 
             if attestation.is_some() || revocation.is_some() {
                 return Ok(ValidateCallbackResult::Invalid(
