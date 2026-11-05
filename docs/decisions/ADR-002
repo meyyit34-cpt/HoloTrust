@@ -1,0 +1,188 @@
+
+# ADR-002: Attestation Architecture
+
+- Status: Accepted
+- Date: 2026-11-05
+- Decision: Separate Attestation module
+- Related specification: HT-ATTESTATION-001
+- Related architecture: HoloTrust Technical Architecture
+
+## 1. Context
+
+HoloTrust requires a verifiable claim system for agents
+representing humans, AI systems, and services.
+
+Identity establishes the cryptographic agent.
+Attestations provide attributable claims.
+Reputation evaluates evidence within a specific context.
+
+Combining these responsibilities would create unnecessary
+coupling and make future protocol changes more difficult.
+
+The existing Identity implementation is functional and
+must remain stable.
+
+## 2. Decision
+
+The Attestation module MUST be implemented as a separate
+Holochain zome pair.
+
+The module consists of:
+
+- attestation_integrity
+- attestation
+
+The existing Identity zomes MUST NOT be modified to
+implement Attestation functionality.
+
+Attestation records MUST be independently versioned
+and validated.
+
+## 3. Issuer and Subject
+
+The issuer MUST be derived from the authenticated
+Holochain action author.
+
+The issuer MUST NOT be accepted from a user-supplied
+entry field.
+
+The subject MUST be represented by AgentPubKey.
+
+Self-issued claims are permitted but MUST be distinguishable
+from independent third-party attestations.
+
+## 4. Immutable Records
+
+Published attestations MUST NOT be edited or deleted.
+
+Revocation MUST create a separate immutable record.
+
+Supersession MUST create a new attestation referencing
+the previous attestation.
+
+Historical records MUST remain retrievable.
+
+A contradictory claim from another issuer MUST NOT
+automatically supersede an existing attestation.
+
+## 5. Evidence and Verification
+
+Evidence references MUST be kept separate from the
+attestation claim itself.
+
+The system MUST distinguish:
+
+- Valid issuer attribution.
+- Structurally valid evidence reference.
+- Evidence availability.
+- Content integrity.
+- Truth of the underlying claim.
+
+A successful signature or hash check MUST NOT be
+represented as proof that the claim is true.
+
+External evidence MUST NOT be trusted solely because
+it is referenced by an attestation.
+
+## 6. Module Boundaries
+
+### Identity
+
+Responsible for:
+
+- Agent profiles.
+- Profile discovery.
+- Agent identity association.
+
+### Attestation
+
+Responsible for:
+
+- Claim publication.
+- Issuer attribution.
+- Subject association.
+- Evidence references.
+- Revocation.
+- Supersession.
+- Attestation history and verification.
+
+### Reputation
+
+Responsible for:
+
+- Contextual evaluation of evidence.
+- Domain-specific reputation.
+- Explainable reputation results.
+
+Attestation MUST NOT calculate reputation.
+
+Reputation MUST NOT modify historical attestations.
+
+## 7. Integrity and Coordinator Separation
+
+The attestation_integrity zome MUST enforce all
+consensus-critical entry and link validation.
+
+The attestation coordinator MUST provide application-facing
+operations without bypassing integrity validation.
+
+Security MUST NOT depend solely on frontend or
+coordinator-side checks.
+
+## 8. Compatibility
+
+Existing Identity entries and APIs MUST remain compatible.
+
+Existing legacy ReputationReview entries MUST remain
+readable.
+
+The new Attestation module MUST NOT silently reinterpret
+legacy reviews as attestations.
+
+No existing identity source files should be changed
+as part of the initial Attestation implementation.
+
+## 9. Implementation Order
+
+1. Approve HT-ATTESTATION-001.
+2. Record this architectural decision.
+3. Create the Attestation integrity zome.
+4. Create the Attestation coordinator zome.
+5. Register the new zomes in the DNA manifest.
+6. Implement validation and discovery.
+7. Implement coordinator operations.
+8. Add multi-agent tests.
+9. Verify revocation and supersession.
+10. Run the complete CI pipeline.
+
+Each implementation step MUST be independently reviewed
+and tested before proceeding.
+
+## 10. Consequences
+
+Positive:
+
+- Identity remains isolated and stable.
+- Attestation rules can evolve independently.
+- Reputation can consume verifiable evidence.
+- Historical claims remain auditable.
+- Security responsibilities are clearly separated.
+
+Trade-offs:
+
+- Additional zomes increase implementation complexity.
+- Cross-module queries require explicit integration.
+- Evidence availability and verification require
+  separate handling.
+
+## 11. Final Decision
+
+HoloTrust adopts a modular architecture:
+
+Identity establishes the agent.
+Attestation records attributable claims.
+Evidence supports verification.
+Reputation evaluates evidence in context.
+
+This decision is binding for the initial Attestation
+implementation.
