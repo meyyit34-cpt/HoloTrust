@@ -9,7 +9,8 @@ use std::path::PathBuf;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn multi_agent_identity_and_reputation_security() {
-    let dna_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../workdir/holotrust.dna");
+    let dna_path =
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../workdir/holotrust.dna");
 
     assert!(
         dna_path.exists(),
@@ -148,6 +149,37 @@ async fn multi_agent_identity_and_reputation_security() {
         .await;
 
     assert_ne!(second_update, updated_profile);
+
+    // Verify that another agent discovers the newest profile after repeated updates.
+    await_consistency(apps.iter().flat_map(|app| app.cells().iter()))
+        .await
+        .expect("Second profile update did not reach DHT consistency");
+
+    let second_update_discovery: Option<Record> = conductors[1]
+        .sweet_handle()
+        .call(
+            &bob_zome,
+            "get_profile",
+            GetProfileInput {
+                agent_pub_key: alice.clone(),
+            },
+        )
+        .await;
+
+    let second_update_record =
+        second_update_discovery.expect("Latest profile was not discoverable");
+
+    assert_eq!(
+        second_update_record.action_address(),
+        &second_update,
+        "Discovery returned an outdated profile after repeated updates"
+    );
+
+    assert_eq!(
+        second_update_record.action().author(),
+        &alice,
+        "Discovery returned a profile from the wrong agent"
+    );
 
     let bob_review_input = CreateReviewInput {
         subject_agent: alice.clone(),
