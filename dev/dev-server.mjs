@@ -14,7 +14,10 @@ const APP_PORT = Number(process.env.HC_APP_PORT ?? 9101);
 const WEB_PORT = Number(process.env.WEB_PORT ?? 8080);
 const HOST = process.env.HOST ?? "127.0.0.1";
 const APP_ID = process.env.HC_APP_ID ?? "holotrust";
-const ORIGIN = "holotrust-dev";
+
+// Both smoke-test and dev-server must use the same origin.
+const ORIGIN = "holotrust-smoke";
+
 const ROLE_NAME = "identity";
 const ZOME_NAME = "identity_coordinator";
 
@@ -46,7 +49,8 @@ const MIME = {
 
 async function setup() {
   const adminWs = await AdminWebsocket.connect({
-    url: new URL("ws://127.0.0.1:" + ADMIN_PORT)
+    url: new URL("ws://127.0.0.1:" + ADMIN_PORT),
+    wsClientOptions: { origin: ORIGIN }
   });
 
   try {
@@ -56,7 +60,8 @@ async function setup() {
     });
   } catch (error) {
     console.log(
-      "INFO: app interface may already exist: " + (error?.message ?? error)
+      "INFO: app interface may already exist: " +
+        (error?.message ?? error)
     );
   }
 
@@ -72,14 +77,21 @@ async function setup() {
 
   const appInfo = await appWs.appInfo();
   const cell = appInfo.cell_info[ROLE_NAME]?.[0];
+
   if (!cell || cell.type !== CellType.Provisioned) {
     throw new Error("Identity cell not found in app " + APP_ID);
   }
 
   const cellId = cell.value.cell_id;
+
   await adminWs.authorizeSigningCredentials(cellId);
 
-  return { appWs, cellId, agentKey: appInfo.agent_pub_key };
+  return {
+    adminWs,
+    appWs,
+    cellId,
+    agentKey: appInfo.agent_pub_key
+  };
 }
 
 function sendMsgpack(res, status, value) {
@@ -87,6 +99,7 @@ function sendMsgpack(res, status, value) {
     "Content-Type": "application/msgpack",
     "Cache-Control": "no-store"
   });
+
   res.end(Buffer.from(encode(value)));
 }
 
@@ -94,15 +107,19 @@ function readBody(req) {
   return new Promise((resolve, reject) => {
     const chunks = [];
     let size = 0;
+
     req.on("data", chunk => {
       size += chunk.length;
+
       if (size > 1_000_000) {
         reject(new Error("Body too large"));
         req.destroy();
         return;
       }
+
       chunks.push(chunk);
     });
+
     req.on("end", () => resolve(Buffer.concat(chunks)));
     req.on("error", reject);
   });
@@ -111,11 +128,13 @@ function readBody(req) {
 async function serveStatic(req, res) {
   const url = new URL(req.url, "http://localhost");
   let pathname = decodeURIComponent(url.pathname);
+
   if (pathname.endsWith("/")) {
     pathname += "index.html";
   }
 
   const filePath = path.normalize(path.join(WEB_ROOT, pathname));
+
   if (!filePath.startsWith(WEB_ROOT + path.sep)) {
     res.writeHead(403);
     res.end("Forbidden");
@@ -124,14 +143,19 @@ async function serveStatic(req, res) {
 
   try {
     const info = await stat(filePath);
+
     if (!info.isFile()) {
-      throw new Error("not a file");
+      throw new Error("Not a file");
     }
+
     const data = await readFile(filePath);
+
     res.writeHead(200, {
-      "Content-Type": MIME[path.extname(filePath)] ?? "application/octet-stream",
+      "Content-Type":
+        MIME[path.extname(filePath)] ?? "application/octet-stream",
       "Cache-Control": "no-store"
     });
+
     res.end(data);
   } catch {
     res.writeHead(404);
@@ -141,6 +165,7 @@ async function serveStatic(req, res) {
 
 async function main() {
   const ctx = await setup();
+
   console.log("INFO: connected to conductor, app " + APP_ID);
 
   const server = http.createServer(async (req, res) => {
@@ -148,25 +173,38 @@ async function main() {
       const url = new URL(req.url, "http://localhost");
 
       if (req.method === "GET" && url.pathname === "/hc/info") {
-        sendMsgpack(res, 200, { agent_pub_key: ctx.agentKey, app_id: APP_ID });
+        sendMsgpack(res, 200, {
+          agent_pub_key: ctx.agentKey,
+          app_id: APP_ID
+        });
         return;
       }
 
-      if (req.method === "POST" && url.pathname.startsWith("/hc/call/")) {
+      if (
+        req.method === "POST" &&
+        url.pathname.startsWith("/hc/call/")
+      ) {
         const origin = req.headers.origin;
+
         if (origin && new URL(origin).host !== req.headers.host) {
-          sendMsgpack(res, 403, { error: "Cross-origin request blocked" });
+          sendMsgpack(res, 403, {
+            error: "Cross-origin request blocked"
+          });
           return;
         }
 
         const fnName = url.pathname.slice("/hc/call/".length);
+
         if (!ALLOWED_FUNCTIONS.has(fnName)) {
-          sendMsgpack(res, 403, { error: "Function not allowed" });
+          sendMsgpack(res, 403, {
+            error: "Function not allowed"
+          });
           return;
         }
 
         const raw = await readBody(req);
-        const payload = raw.length === 0 ? null : decode(new Uint8Array(raw));
+        const payload =
+          raw.length === 0 ? null : decode(new Uint8Array(raw));
 
         try {
           const result = await ctx.appWs.callZome({
@@ -176,10 +214,16 @@ async function main() {
             provenance: ctx.agentKey,
             payload
           });
-          sendMsgpack(res, 200, { result: result ?? null });
+
+          sendMsgpack(res, 200, {
+            result: result ?? null
+          });
         } catch (error) {
-          sendMsgpack(res, 500, { error: String(error?.message ?? error) });
+          sendMsgpack(res, 500, {
+            error: String(error?.message ?? error)
+          });
         }
+
         return;
       }
 
@@ -198,7 +242,12 @@ async function main() {
   });
 
   server.listen(WEB_PORT, HOST, () => {
-    console.log("INFO: HoloTrust dev server on http://" + HOST + ":" + WEB_PORT);
+    console.log(
+      "INFO: HoloTrust dev server on http://" +
+        HOST +
+        ":" +
+        WEB_PORT
+    );
   });
 }
 
