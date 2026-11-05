@@ -35,6 +35,14 @@ pub struct RevokeAttestationInput {
     pub reason: Option<String>,
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+pub enum AttestationStatus {
+    Active,
+    Revoked,
+    Expired,
+    Superseded,
+}
+
 #[hdk_extern]
 pub fn create_attestation(input: CreateAttestationInput) -> ExternResult<ActionHash> {
     let attestation = Attestation {
@@ -208,4 +216,100 @@ pub fn revoke_attestation(input: RevokeAttestationInput) -> ExternResult<ActionH
     )?;
 
     Ok(revocation_hash)
+}
+
+#[hdk_extern]
+pub fn resolve_attestation_status(
+    input: GetAttestationInput,
+) -> ExternResult<AttestationStatus> {
+    let Some(record) = get(input.action_hash.clone(), GetOptions::default())? else {
+        return Err(wasm_error!(WasmErrorInner::Guest(
+            "Attestation not found".into(),
+        )));
+    };
+
+    let attestation = record
+        .entry()
+        .to_app_option::<Attestation>()
+        .map_err(|error| wasm_error!(WasmErrorInner::Guest(error.to_string())))?
+        .ok_or_else(|| {
+            wasm_error!(WasmErrorInner::Guest(
+                "Target record is not an attestation".into(),
+            ))
+        })?;
+
+    validate_attestation(&attestation)
+        .map_err(|reason| wasm_error!(WasmErrorInner::Guest(reason)))?;
+
+    let issuer = record.action().author().clone();
+
+    let revocation_links = get_links(
+        LinkQuery::try_new(
+            input.action_hash.clone(),
+            LinkTypes::AttestationToRevocation,
+        )?,
+        GetStrategy::default(),
+    )?;
+
+    for link in revocation_links {
+        if link.author != issuer {
+            continue;
+        }
+
+        let Some(revocation_hash) = link.target.into_action_hash() else {
+            continue;
+        };
+
+        let Some(revocation_record) = get(revocation_hash, GetOptions::default())? else {
+            continue;
+        };
+
+        if revocation_record.action().author() != &issuer {
+            continue;
+        }
+
+        let revocation = revocation_record
+            .entry()
+            .to_app_option::<AttestationRevocation>()
+            .map_err(|error| wasm_error!(WasmErrorInner::Guest(error.to_string())))?;
+
+        if let Some(revocation) = revocation {
+            if revocation.attestation == input.action_hash {
+                return Ok(AttestationStatus::Revoked);
+            }
+        }
+    }
+
+    let subject_records = get_attestations_for_subject(GetAttestationsForSubjectInput {
+        subject: attestation.subject.clone(),
+    })?;
+
+    for candidate_record in subject_records {
+        if candidate_record.action().author() != &issuer {
+            continue;
+        }
+
+        let candidate = match candidate_record.entry().to_app_option::<Attestation>() {
+            Ok(Some(candidate)) => candidate,
+            _ => continue,
+        };
+
+        if candidate.supersedes.as_ref() == Some(&input.action_hash)
+            && candidate.subject == attestation.subject
+            && candidate.claim_type == attestation.claim_type
+            && validate_attestation(&candidate).is_ok()
+        {
+            return Ok(AttestationStatus::Superseded);
+        }
+    }
+
+    if let Some(expires_at) = &attestation.expires_at {
+        let current_time = sys_time()?;
+
+        if expires_at <= &current_time {
+            return Ok(AttestationStatus::Expired);
+        }
+    }
+
+    Ok(AttestationStatus::Active)
 }
