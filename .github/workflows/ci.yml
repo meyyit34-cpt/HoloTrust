@@ -1,3 +1,4 @@
+
 name: HoloTrust CI
 
 on:
@@ -39,6 +40,7 @@ jobs:
     env:
       CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUSTFLAGS: '--cfg getrandom_backend="custom" -C link-arg=--allow-undefined'
       CARGO_BUILD_JOBS: 2
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
@@ -103,36 +105,74 @@ jobs:
           test -s dnas/holotrust/workdir/holotrust.happ
 
       - name: Smoke test with real conductor
-        
         shell: bash
         run: |
           set -Eeuo pipefail
+
           nix develop --print-build-logs 'github:holochain/holonix?ref=main-0.7' -c bash -euo pipefail -c '
             node --version
             npm install --prefix dev
-            echo "ci-passphrase" | hc sandbox --piped -f=9000 generate dnas/holotrust/workdir/holotrust.happ --app-id holotrust -r > sandbox.log 2>&1 &
+
+            echo "ci-passphrase" | hc sandbox --piped -f=9000 generate dnas/holotrust/workdir/holotrust.happ --app-id holotrust --run=0 > sandbox.log 2>&1 &
             SANDBOX_PID=$!
+
+            DEV_PID=""
+
+            cleanup() {
+              if [ -n "$DEV_PID" ]; then
+                kill "$DEV_PID" 2>/dev/null || true
+              fi
+              kill "$SANDBOX_PID" 2>/dev/null || true
+            }
+
+            trap cleanup EXIT
+
+            READY=0
             for i in $(seq 1 60); do
-              if (echo > /dev/tcp/127.0.0.1/9000) 2>/dev/null; then break; fi
+              if (echo > /dev/tcp/127.0.0.1/9000) 2>/dev/null; then
+                READY=1
+                break
+              fi
               sleep 2
             done
-            if ! node dev/smoke-test.mjs; then
-              tail -n 80 sandbox.log || true
-              kill $SANDBOX_PID || true
+
+            if [ "$READY" -ne 1 ]; then
+              echo "Conductor admin port 9000 did not become ready."
+              tail -n 100 sandbox.log || true
               exit 1
             fi
+
+            if ! node dev/smoke-test.mjs; then
+              echo "Real conductor smoke test failed."
+              tail -n 100 sandbox.log || true
+              exit 1
+            fi
+
             node dev/dev-server.mjs > dev-server.log 2>&1 &
             DEV_PID=$!
+
+            PROXY_READY=0
             for i in $(seq 1 30); do
-              if curl -sf http://127.0.0.1:8080/hc/info > /dev/null; then break; fi
+              if curl -sf http://127.0.0.1:8080/hc/info > /dev/null; then
+                PROXY_READY=1
+                break
+              fi
               sleep 1
             done
-            if ! node dev/proxy-test.mjs; then
-              tail -n 80 dev-server.log || true
-              kill $DEV_PID $SANDBOX_PID || true
+
+            if [ "$PROXY_READY" -ne 1 ]; then
+              echo "Development proxy did not become ready."
+              tail -n 100 dev-server.log || true
               exit 1
             fi
-            kill $DEV_PID $SANDBOX_PID || true
+
+            if ! node dev/proxy-test.mjs; then
+              echo "Proxy smoke test failed."
+              tail -n 100 dev-server.log || true
+              exit 1
+            fi
+
+            echo "HoloTrust conductor and proxy smoke tests passed."
           '
 
       - name: Upload hApp bundle
