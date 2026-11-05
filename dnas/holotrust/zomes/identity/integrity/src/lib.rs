@@ -145,8 +145,7 @@ fn validate_profile_link_history(
     let previous_activity = must_get_agent_activity(author.clone(), ChainFilter::new(chain_top))?;
 
     for activity in previous_activity {
-        if let ActionData::CreateLink(previous_link) =
-            &activity.action.hashed.content.data
+        if let ActionData::CreateLink(previous_link) = &activity.action.hashed.content.data {
         {
             if previous_link.base_address == candidate.base_address
                 && previous_link.target_address == candidate.target_address
