@@ -101,8 +101,50 @@ pub fn validate_revocation(revocation: &AttestationRevocation) -> Result<(), Str
     Ok(())
 }
 
+fn validate_no_duplicate_revocation(
+    author: AgentPubKey,
+    previous_action_hash: ActionHash,
+    revocation: &AttestationRevocation,
+) -> ExternResult<ValidateCallbackResult> {
+    let revocation_entry_type =
+        EntryType::App(UnitEntryTypes::AttestationRevocation.try_into()?);
+
+    let activity = must_get_agent_activity(
+        author,
+        ChainFilter::new(previous_action_hash),
+    )?;
+
+    for item in activity {
+        let previous_action = &item.action.hashed.content;
+
+        if previous_action.entry_type() != Some(&revocation_entry_type) {
+            continue;
+        }
+
+        let record = must_get_valid_record(item.action.hashed.hash.clone())?;
+
+        let existing_revocation = record
+            .entry()
+            .to_app_option::<AttestationRevocation>()
+            .map_err(|error| wasm_error!(WasmErrorInner::Guest(error.to_string())))?;
+
+        if let Some(existing_revocation) = existing_revocation {
+            if existing_revocation.attestation == revocation.attestation {
+                return Ok(ValidateCallbackResult::Invalid(
+                    "This attestation has already been revoked".into(),
+                ));
+            }
+        }
+    }
+
+    Ok(ValidateCallbackResult::Valid)
+}
+
 #[hdk_extern]
 pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
+    let op_author = op.author().clone();
+    let op_previous_action = op.prev_action().cloned();
+
     match op.flattened::<EntryTypes, LinkTypes>()? {
         FlatOp::CreateEntry(OpEntry::CreateEntry {
             app_entry: EntryTypes::Attestation(attestation),
@@ -125,7 +167,7 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
             let original_attestation = original
                 .entry()
                 .to_app_option::<Attestation>()
-                .map_err(|e| wasm_error!(WasmErrorInner::Guest(e.to_string())))?;
+                .map_err(|error| wasm_error!(WasmErrorInner::Guest(error.to_string())))?;
 
             if original_attestation.is_none() {
                 return Ok(ValidateCallbackResult::Invalid(
@@ -139,7 +181,17 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
                 ));
             }
 
-            Ok(ValidateCallbackResult::Valid)
+            let Some(previous_action_hash) = op_previous_action else {
+                return Ok(ValidateCallbackResult::Invalid(
+                    "Revocation action must have a previous source-chain action".into(),
+                ));
+            };
+
+            validate_no_duplicate_revocation(
+                op_author,
+                previous_action_hash,
+                &revocation,
+            )
         }
 
         FlatOp::Update(OpUpdate::Entry {
@@ -162,12 +214,12 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
             let attestation = original
                 .entry()
                 .to_app_option::<Attestation>()
-                .map_err(|e| wasm_error!(WasmErrorInner::Guest(e.to_string())))?;
+                .map_err(|error| wasm_error!(WasmErrorInner::Guest(error.to_string())))?;
 
             let revocation = original
                 .entry()
                 .to_app_option::<AttestationRevocation>()
-                .map_err(|e| wasm_error!(WasmErrorInner::Guest(e.to_string())))?;
+                .map_err(|error| wasm_error!(WasmErrorInner::Guest(error.to_string())))?;
 
             if attestation.is_some() || revocation.is_some() {
                 return Ok(ValidateCallbackResult::Invalid(
