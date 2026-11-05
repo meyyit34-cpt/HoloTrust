@@ -191,17 +191,13 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
             link_type: LinkTypes::AttestationToRevocation,
             action,
         }) => {
-            let Some(attestation_hash) =
-                action.base_address.clone().into_action_hash()
-            else {
+            let Some(attestation_hash) = action.base_address.clone().into_action_hash() else {
                 return Ok(ValidateCallbackResult::Invalid(
                     "Revocation link base must be an attestation action hash".into(),
                 ));
             };
 
-            let Some(revocation_hash) =
-                action.target_address.clone().into_action_hash()
-            else {
+            let Some(revocation_hash) = action.target_address.clone().into_action_hash() else {
                 return Ok(ValidateCallbackResult::Invalid(
                     "Revocation link target must be a revocation action hash".into(),
                 ));
