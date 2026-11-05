@@ -1,3 +1,4 @@
+
 use hdi::prelude::*;
 use serde::{Deserialize, Serialize};
 
@@ -104,19 +105,16 @@ fn validate_review_history(
         ));
     };
 
-    let review_entry_type =
-        EntryType::App(UnitEntryTypes::ReputationReview.try_into()?);
+    let review_entry_type = EntryType::App(UnitEntryTypes::ReputationReview.try_into()?);
 
-    let previous_activity =
-        must_get_agent_activity(author.clone(), ChainFilter::new(chain_top))?;
+    let previous_activity = must_get_agent_activity(author.clone(), ChainFilter::new(chain_top))?;
 
     for activity in previous_activity {
         if activity.action.hashed.content.entry_type() != Some(&review_entry_type) {
             continue;
         }
 
-        let previous_record =
-            must_get_valid_record(activity.action.hashed.hash.clone())?;
+        let previous_record = must_get_valid_record(activity.action.hashed.hash.clone())?;
 
         let previous_review = previous_record
             .entry()
