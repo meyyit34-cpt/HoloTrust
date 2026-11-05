@@ -102,6 +102,54 @@ pub fn validate_revocation(revocation: &AttestationRevocation) -> Result<(), Str
     Ok(())
 }
 
+fn validate_supersedes(
+    issuer: &AgentPubKey,
+    attestation: &Attestation,
+) -> ExternResult<ValidateCallbackResult> {
+    let Some(previous_hash) = &attestation.supersedes else {
+        return Ok(ValidateCallbackResult::Valid);
+    };
+
+    let previous_record = must_get_valid_record(previous_hash.clone())?;
+
+    if previous_record.action().author() != issuer {
+        return Ok(ValidateCallbackResult::Invalid(
+            "An attestation can only supersede a claim from the same issuer".into(),
+        ));
+    }
+
+    let previous_attestation = previous_record
+        .entry()
+        .to_app_option::<Attestation>()
+        .map_err(|error| wasm_error!(WasmErrorInner::Guest(error.to_string())))?;
+
+    let Some(previous_attestation) = previous_attestation else {
+        return Ok(ValidateCallbackResult::Invalid(
+            "Superseded record must be an attestation".into(),
+        ));
+    };
+
+    if let Err(reason) = validate_attestation(&previous_attestation) {
+        return Ok(ValidateCallbackResult::Invalid(format!(
+            "Superseded attestation is invalid: {reason}"
+        )));
+    }
+
+    if previous_attestation.subject != attestation.subject {
+        return Ok(ValidateCallbackResult::Invalid(
+            "Superseded attestation must belong to the same subject".into(),
+        ));
+    }
+
+    if previous_attestation.claim_type != attestation.claim_type {
+        return Ok(ValidateCallbackResult::Invalid(
+            "Superseded attestation must have the same claim type".into(),
+        ));
+    }
+
+    Ok(ValidateCallbackResult::Valid)
+}
+
 fn validate_no_duplicate_revocation(
     author: AgentPubKey,
     previous_action_hash: ActionHash,
@@ -145,11 +193,14 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
     match op.flattened::<EntryTypes, LinkTypes>()? {
         FlatOp::CreateEntry(OpEntry::CreateEntry {
             app_entry: EntryTypes::Attestation(attestation),
-            ..
-        }) => match validate_attestation(&attestation) {
-            Ok(()) => Ok(ValidateCallbackResult::Valid),
-            Err(reason) => Ok(ValidateCallbackResult::Invalid(reason)),
-        },
+            action,
+        }) => {
+            if let Err(reason) = validate_attestation(&attestation) {
+                return Ok(ValidateCallbackResult::Invalid(reason));
+            }
+
+            validate_supersedes(action.author(), &attestation)
+        }
 
         FlatOp::CreateEntry(OpEntry::CreateEntry {
             app_entry: EntryTypes::AttestationRevocation(revocation),
