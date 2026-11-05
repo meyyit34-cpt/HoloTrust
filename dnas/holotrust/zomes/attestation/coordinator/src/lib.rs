@@ -191,12 +191,21 @@ pub fn revoke_attestation(input: RevokeAttestationInput) -> ExternResult<ActionH
 
     let revocation = AttestationRevocation {
         schema_version: 1,
-        attestation: input.attestation,
+        attestation: input.attestation.clone(),
         reason: input.reason,
     };
 
     validate_revocation(&revocation)
         .map_err(|reason| wasm_error!(WasmErrorInner::Guest(reason)))?;
 
-    create_entry(EntryTypes::AttestationRevocation(revocation))
+    let revocation_hash = create_entry(EntryTypes::AttestationRevocation(revocation))?;
+
+    create_link(
+        input.attestation,
+        revocation_hash.clone(),
+        LinkTypes::AttestationToRevocation,
+        "revocation",
+    )?;
+
+    Ok(revocation_hash)
 }
