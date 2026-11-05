@@ -134,7 +134,7 @@ fn validate_review_history(
 fn validate_profile_link_history(
     author: &AgentPubKey,
     previous_action: Option<ActionHash>,
-    candidate: &CreateLink,
+    candidate: &CreateLinkData,
 ) -> ExternResult<ValidateCallbackResult> {
     let Some(chain_top) = previous_action else {
         return Ok(ValidateCallbackResult::Invalid(
@@ -145,9 +145,12 @@ fn validate_profile_link_history(
     let previous_activity = must_get_agent_activity(author.clone(), ChainFilter::new(chain_top))?;
 
     for activity in previous_activity {
-        if let Action::CreateLink(previous_link) = &activity.action.hashed.content {
+        if let ActionData::CreateLink(previous_link) =
+            &activity.action.hashed.content.data
+        {
             if previous_link.base_address == candidate.base_address
                 && previous_link.target_address == candidate.target_address
+                && previous_link.zome_index == candidate.zome_index
                 && previous_link.link_type == candidate.link_type
             {
                 return Ok(ValidateCallbackResult::Invalid(
@@ -253,7 +256,7 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
             let duplicate_check = validate_profile_link_history(
                 action.author(),
                 action.prev_action().cloned(),
-                &action,
+                &action.data,
             )?;
 
             if duplicate_check != ValidateCallbackResult::Valid {
