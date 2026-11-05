@@ -1,4 +1,3 @@
-
 use holochain::prelude::{ActionHash, Record};
 use holochain::sweettest::*;
 use identity_coordinator::{CreateProfileInput, UpdateProfileInput};
