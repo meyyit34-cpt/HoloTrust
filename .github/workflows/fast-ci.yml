@@ -1,4 +1,3 @@
-
 name: HoloTrust Fast CI
 
 on:
@@ -32,6 +31,35 @@ jobs:
 
       - name: Check formatting
         run: cargo fmt --all -- --check
+
+  lint:
+    name: Rust lint checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Install Rust and Clippy
+        uses: dtolnay/rust-toolchain@1.99.1
+        with:
+          components: clippy
+
+      - name: Cache Cargo dependencies and build outputs
+        uses: actions/cache@v6
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-clippy-${{ hashFiles('**/Cargo.toml', '**/Cargo.lock', 'rust-toolchain.toml', 'rust-toolchain') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-clippy-
+            ${{ runner.os }}-cargo-fast-
+            ${{ runner.os }}-cargo-
+
+      - name: Run Clippy across workspace and test targets
+        run: cargo clippy --workspace --all-targets -- -D warnings
 
   quick-check:
     name: Quick compile and independent tests
