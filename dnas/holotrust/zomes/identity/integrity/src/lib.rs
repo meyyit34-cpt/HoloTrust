@@ -1,3 +1,4 @@
+
 use hdi::prelude::*;
 use serde::{Deserialize, Serialize};
 
@@ -109,9 +110,7 @@ pub fn validate_review(review: &ReputationReview) -> Result<(), String> {
     Ok(())
 }
 
-pub fn validate_contextual_review(
-    review: &ContextualReputationReview,
-) -> Result<(), String> {
+pub fn validate_contextual_review(review: &ContextualReputationReview) -> Result<(), String> {
     if review.schema_version != 1 {
         return Err("Unsupported contextual review schema version".into());
     }
@@ -148,8 +147,7 @@ fn validate_review_history(
 
     let review_entry_type = EntryType::App(UnitEntryTypes::ReputationReview.try_into()?);
 
-    let previous_activity =
-        must_get_agent_activity(author.clone(), ChainFilter::new(chain_top))?;
+    let previous_activity = must_get_agent_activity(author.clone(), ChainFilter::new(chain_top))?;
 
     for activity in previous_activity {
         if activity.action.hashed.content.entry_type() != Some(&review_entry_type) {
@@ -194,8 +192,7 @@ fn validate_contextual_review_history(
     let review_entry_type =
         EntryType::App(UnitEntryTypes::ContextualReputationReview.try_into()?);
 
-    let previous_activity =
-        must_get_agent_activity(author.clone(), ChainFilter::new(chain_top))?;
+    let previous_activity = must_get_agent_activity(author.clone(), ChainFilter::new(chain_top))?;
 
     for activity in previous_activity {
         if activity.action.hashed.content.entry_type() != Some(&review_entry_type) {
@@ -213,9 +210,7 @@ fn validate_contextual_review_history(
             continue;
         };
 
-        if previous_review.subject_agent == *subject_agent
-            && previous_review.domain == *domain
-        {
+        if previous_review.subject_agent == *subject_agent && previous_review.domain == *domain {
             return Ok(ValidateCallbackResult::Invalid(
                 "An agent can publish only one review per subject and domain".into(),
             ));
