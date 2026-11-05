@@ -152,16 +152,26 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
             "Published reputation reviews cannot be edited".into(),
         )),
 
-        FlatOp::Link(OpLink::CreateLink {
-            link_type: LinkTypes::AgentToProfile,
-            action,
-        }) => {
-            let Some(owner) = action.base_address.clone().into_agent_pub_key() else {
-                return Ok(ValidateCallbackResult::Invalid(
-                    "Profile link base must be an agent".into(),
-                ));
-            };
+                FlatOp::Link(OpLink::DeleteLink {
+            link_type: LinkTypes::AgentToReview,
+            ..
+        }) => Ok(ValidateCallbackResult::Invalid(
+            "Reputation review links cannot be deleted".into(),
+        )),
 
+        FlatOp::Link(OpLink::DeleteLink {
+            original_action,
+            action,
+            ..
+        }) => {
+            if action.author() != original_action.author() {
+                return Ok(ValidateCallbackResult::Invalid(
+                    "Only the link author can delete a link".into(),
+                ));
+            }
+
+            Ok(ValidateCallbackResult::Valid)
+        }
             if &owner != action.author() {
                 return Ok(ValidateCallbackResult::Invalid(
                     "Profile links must be created by their owning agent".into(),
