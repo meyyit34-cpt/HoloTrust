@@ -1,3 +1,4 @@
+
 use hdi::prelude::*;
 use serde::{Deserialize, Serialize};
 
@@ -88,11 +89,6 @@ pub fn validate_review(review: &ReputationReview) -> Result<(), String> {
     Ok(())
 }
 
-/// Checks the review author's previous source-chain activity.
-///
-/// This check runs while validating the CreateEntry operation itself.
-/// It deliberately does not rely on DHT link queries, whose results can
-/// differ between validators and can be incomplete during propagation.
 fn validate_review_history(
     author: &AgentPubKey,
     previous_action: Option<ActionHash>,
@@ -128,6 +124,37 @@ fn validate_review_history(
             return Ok(ValidateCallbackResult::Invalid(
                 "An agent can publish only one reputation review per subject".into(),
             ));
+        }
+    }
+
+    Ok(ValidateCallbackResult::Valid)
+}
+
+/// Rejects a second profile link to the same target on the same source chain.
+/// A profile update remains valid because it points to a new action hash.
+fn validate_profile_link_history(
+    author: &AgentPubKey,
+    previous_action: Option<ActionHash>,
+    candidate: &CreateLink,
+) -> ExternResult<ValidateCallbackResult> {
+    let Some(chain_top) = previous_action else {
+        return Ok(ValidateCallbackResult::Invalid(
+            "A profile link must follow an existing source-chain action".into(),
+        ));
+    };
+
+    let previous_activity = must_get_agent_activity(author.clone(), ChainFilter::new(chain_top))?;
+
+    for activity in previous_activity {
+        if let Action::CreateLink(previous_link) = &activity.action.hashed.content {
+            if previous_link.base_address == candidate.base_address
+                && previous_link.target_address == candidate.target_address
+                && previous_link.link_type == candidate.link_type
+            {
+                return Ok(ValidateCallbackResult::Invalid(
+                    "An agent cannot create duplicate links to the same profile".into(),
+                ));
+            }
         }
     }
 
@@ -223,6 +250,16 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
                     "Profile link target must be an action hash".into(),
                 ));
             };
+
+            let duplicate_check = validate_profile_link_history(
+                action.author(),
+                action.prev_action().cloned(),
+                &action,
+            )?;
+
+            if duplicate_check != ValidateCallbackResult::Valid {
+                return Ok(duplicate_check);
+            }
 
             let record = must_get_valid_record(target)?;
 
