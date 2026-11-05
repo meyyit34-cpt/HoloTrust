@@ -1,3 +1,4 @@
+
 [package]
 name = "attestation_coordinator"
 version.workspace = true
@@ -11,3 +12,7 @@ crate-type = ["cdylib", "rlib"]
 hdk = { workspace = true }
 serde = { workspace = true }
 attestation_integrity = { path = "../integrity" }
+
+[dev-dependencies]
+holochain = { version = "=0.7.1", default-features = false, features = ["sweettest", "wasmer-sys-cranelift", "encryption"] }
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
