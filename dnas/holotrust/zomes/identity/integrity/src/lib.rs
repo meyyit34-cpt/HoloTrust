@@ -130,6 +130,8 @@ fn validate_review_history(
 }
 
 // Compares the complete identity of two profile discovery links.
+// Keep this explicit comparison readable and type-checked.
+#[allow(clippy::too_many_arguments)]
 fn same_profile_link<B: PartialEq, T: PartialEq, Z: PartialEq, L: PartialEq>(
     previous_base: &B,
     previous_target: &T,
