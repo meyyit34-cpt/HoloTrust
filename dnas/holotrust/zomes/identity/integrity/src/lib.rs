@@ -1,5 +1,4 @@
 use hdi::prelude::*;
-
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -152,26 +151,16 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
             "Published reputation reviews cannot be edited".into(),
         )),
 
-                FlatOp::Link(OpLink::DeleteLink {
-            link_type: LinkTypes::AgentToReview,
-            ..
-        }) => Ok(ValidateCallbackResult::Invalid(
-            "Reputation review links cannot be deleted".into(),
-        )),
-
-        FlatOp::Link(OpLink::DeleteLink {
-            original_action,
+        FlatOp::Link(OpLink::CreateLink {
+            link_type: LinkTypes::AgentToProfile,
             action,
-            ..
         }) => {
-            if action.author() != original_action.author() {
+            let Some(owner) = action.base_address.clone().into_agent_pub_key() else {
                 return Ok(ValidateCallbackResult::Invalid(
-                    "Only the link author can delete a link".into(),
+                    "Profile link base must be an agent".into(),
                 ));
-            }
+            };
 
-            Ok(ValidateCallbackResult::Valid)
-        }
             if &owner != action.author() {
                 return Ok(ValidateCallbackResult::Invalid(
                     "Profile links must be created by their owning agent".into(),
@@ -257,6 +246,13 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
         }
 
         FlatOp::Link(OpLink::DeleteLink {
+            link_type: LinkTypes::AgentToReview,
+            ..
+        }) => Ok(ValidateCallbackResult::Invalid(
+            "Reputation review links cannot be deleted".into(),
+        )),
+
+        FlatOp::Link(OpLink::DeleteLink {
             original_action,
             action,
             ..
@@ -272,6 +268,17 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
 
         FlatOp::Delete(OpDelete { action }) => {
             let original_record = must_get_valid_record(action.deletes_address.clone())?;
+
+            let review = original_record
+                .entry()
+                .to_app_option::<ReputationReview>()
+                .map_err(|e| wasm_error!(WasmErrorInner::Guest(e.to_string())))?;
+
+            if review.is_some() {
+                return Ok(ValidateCallbackResult::Invalid(
+                    "Published reputation reviews cannot be deleted".into(),
+                ));
+            }
 
             if action.author() != original_record.action().author() {
                 return Ok(ValidateCallbackResult::Invalid(
