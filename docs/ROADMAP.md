@@ -23,10 +23,10 @@ Tasks:
 - [x] Pin Holonix to a specific commit.
 - [x] Generate canonical Holochain DNA scaffold.
 - [x] Configure automated Rust formatting checks.
-- [ ] Configure and verify linting checks.
+- [x] Configure and verify linting checks.
 - [x] Establish automated CI pipeline.
 
-Status: Complete, with linting configuration remaining.
+Status: Complete.
 
 ## Phase 1 — Identity MVP
 
@@ -178,6 +178,7 @@ Completed foundations:
 - Duplicate profile-link protection.
 - Identity discovery documentation.
 - Automated CI pipeline.
+- Rust formatting and Clippy checks verified.
 - Attestation schema and integrity validation.
 - Attestation coordinator and revocation logic.
 - Attestation validation tests included in Fast CI.
