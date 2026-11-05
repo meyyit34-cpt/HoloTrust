@@ -1,3 +1,4 @@
+
 import {
   AdminWebsocket,
   AppWebsocket,
@@ -28,6 +29,7 @@ function decodeProfile(record) {
         JSON.stringify(Object.keys(record?.entry ?? {}))
     );
   }
+
   const bytes = present.entry ?? present;
   return decode(bytes);
 }
@@ -38,8 +40,10 @@ function recordHash(record) {
 
 async function main() {
   const adminWs = await AdminWebsocket.connect({
-    url: new URL("ws://127.0.0.1:" + ADMIN_PORT)
+    url: new URL("ws://127.0.0.1:" + ADMIN_PORT),
+    wsClientOptions: { origin: ORIGIN }
   });
+
   console.log("SMOKE INFO: admin websocket connected");
 
   await adminWs.attachAppInterface({
@@ -56,97 +60,144 @@ async function main() {
     token: issued.token,
     wsClientOptions: { origin: ORIGIN }
   });
+
   console.log("SMOKE INFO: app websocket connected");
 
-  const appInfo = await appWs.appInfo();
-  const cell = appInfo.cell_info[ROLE_NAME]?.[0];
-  check(
-    cell && cell.type === CellType.Provisioned,
-    "identity cell is provisioned"
-  );
+  try {
+    const appInfo = await appWs.appInfo();
+    const cell = appInfo.cell_info[ROLE_NAME]?.[0];
 
-  const cellId = cell.value.cell_id;
-  await adminWs.authorizeSigningCredentials(cellId);
+    check(
+      cell && cell.type === CellType.Provisioned,
+      "identity cell is provisioned"
+    );
 
-  const agentKey = appInfo.agent_pub_key;
-  check(
-    encodeHashToBase64(agentKey).startsWith("uhCAk"),
-    "agent public key encodes with uhCAk prefix"
-  );
+    const cellId = cell.value.cell_id;
+    await adminWs.authorizeSigningCredentials(cellId);
 
-  const call = (fn_name, payload) =>
-    appWs.callZome({
-      cell_id: cellId,
-      zome_name: ZOME_NAME,
-      fn_name,
-      provenance: agentKey,
-      payload
+    const agentKey = appInfo.agent_pub_key;
+
+    check(
+      encodeHashToBase64(agentKey).startsWith("uhCAk"),
+      "agent public key encodes with uhCAk prefix"
+    );
+
+    const call = (fn_name, payload) =>
+      appWs.callZome({
+        cell_id: cellId,
+        zome_name: ZOME_NAME,
+        fn_name,
+        provenance: agentKey,
+        payload
+      });
+
+    const before = await call("get_my_profile", null);
+
+    check(
+      before === null || before === undefined,
+      "no profile before creation"
+    );
+
+    const created = await call("create_profile", {
+      display_name: "Smoke Agent",
+      agent_type: "AI",
+      description: "ci smoke test"
     });
 
-  const before = await call("get_my_profile", null);
-  check(before === null || before === undefined, "no profile before creation");
+    check(
+      created instanceof Uint8Array,
+      "create_profile returns an action hash"
+    );
 
-  const created = await call("create_profile", {
-    display_name: "Smoke Agent",
-    agent_type: "AI",
-    description: "ci smoke test"
-  });
-  check(created instanceof Uint8Array, "create_profile returns an action hash");
+    const mine = await call("get_my_profile", null);
 
-  const mine = await call("get_my_profile", null);
-  check(mine !== null && mine !== undefined, "profile found after creation");
+    check(
+      mine !== null && mine !== undefined,
+      "profile found after creation"
+    );
 
-  const decoded = decodeProfile(mine);
-  console.log("SMOKE INFO: decoded profile = " + JSON.stringify(decoded));
-  check(decoded.display_name === "Smoke Agent", "display_name decodes");
-  check(decoded.agent_type === "AI", "agent_type AI serializes as the string AI");
-  check(
-    recordHash(mine) === encodeHashToBase64(created),
-    "record action hash matches created hash"
-  );
+    const decoded = decodeProfile(mine);
 
-  const updated = await call("update_profile", {
-    action_hash: created,
-    display_name: "Smoke Agent Updated",
-    agent_type: "AI",
-    description: null
-  });
-  check(updated instanceof Uint8Array, "update_profile returns an action hash");
+    console.log(
+      "SMOKE INFO: decoded profile = " + JSON.stringify(decoded)
+    );
 
-  let staleRejected = false;
-  try {
-    await call("update_profile", {
+    check(
+      decoded.display_name === "Smoke Agent",
+      "display_name decodes"
+    );
+
+    check(
+      decoded.agent_type === "AI",
+      "agent_type AI serializes as the string AI"
+    );
+
+    check(
+      recordHash(mine) === encodeHashToBase64(created),
+      "record action hash matches created hash"
+    );
+
+    const updated = await call("update_profile", {
       action_hash: created,
-      display_name: "Stale",
+      display_name: "Smoke Agent Updated",
       agent_type: "AI",
       description: null
     });
-  } catch (error) {
-    staleRejected = true;
-    console.log("SMOKE INFO: stale update error = " + (error?.message ?? error));
+
+    check(
+      updated instanceof Uint8Array,
+      "update_profile returns an action hash"
+    );
+
+    let staleRejected = false;
+
+    try {
+      await call("update_profile", {
+        action_hash: created,
+        display_name: "Stale",
+        agent_type: "AI",
+        description: null
+      });
+    } catch (error) {
+      staleRejected = true;
+      console.log(
+        "SMOKE INFO: stale update error = " +
+          (error?.message ?? error)
+      );
+    }
+
+    check(
+      staleRejected,
+      "update from a stale version is rejected"
+    );
+
+    const afterUpdate = await call("get_my_profile", null);
+
+    check(
+      recordHash(afterUpdate) === encodeHashToBase64(updated),
+      "get_my_profile returns the latest version"
+    );
+
+    check(
+      decodeProfile(afterUpdate).display_name === "Smoke Agent Updated",
+      "updated display_name decodes"
+    );
+
+    const lookedUp = await call("get_profile", {
+      agent_pub_key: agentKey
+    });
+
+    check(
+      lookedUp !== null &&
+        recordHash(lookedUp) === encodeHashToBase64(updated),
+      "get_profile by agent public key returns the latest version"
+    );
+
+    console.log("SMOKE DONE: all checks passed");
+  } finally {
+    await appWs.client.close();
+    await adminWs.client.close();
   }
-  check(staleRejected, "update from a stale version is rejected");
-
-  const afterUpdate = await call("get_my_profile", null);
-  check(
-    recordHash(afterUpdate) === encodeHashToBase64(updated),
-    "get_my_profile returns the latest version"
-  );
-  check(
-    decodeProfile(afterUpdate).display_name === "Smoke Agent Updated",
-    "updated display_name decodes"
-  );
-
-  const lookedUp = await call("get_profile", { agent_pub_key: agentKey });
-  check(
-    lookedUp !== null && recordHash(lookedUp) === encodeHashToBase64(updated),
-    "get_profile by agent public key returns the latest version"
-  );
-
-  await appWs.client.close();
-  await adminWs.client.close();
-  console.log("SMOKE DONE: all checks passed");
-  process.exit(0);
 }
 
 main().catch(error => {
