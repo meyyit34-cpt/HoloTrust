@@ -9,6 +9,10 @@ integrity:
       hash: null
       path: ../../../target/wasm32-unknown-unknown/release/identity_integrity.wasm
 
+    - name: attestation_integrity
+      hash: null
+      path: ../../../target/wasm32-unknown-unknown/release/attestation_integrity.wasm
+
 coordinator:
   zomes:
     - name: identity_coordinator
@@ -16,3 +20,9 @@ coordinator:
       path: ../../../target/wasm32-unknown-unknown/release/identity_coordinator.wasm
       dependencies:
         - name: identity_integrity
+
+    - name: attestation_coordinator
+      hash: null
+      path: ../../../target/wasm32-unknown-unknown/release/attestation_coordinator.wasm
+      dependencies:
+        - name: attestation_integrity
