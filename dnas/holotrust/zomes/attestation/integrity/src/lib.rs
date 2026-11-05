@@ -188,6 +188,109 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
         }
 
         FlatOp::Link(OpLink::CreateLink {
+            link_type: LinkTypes::SubjectToAttestation,
+            action,
+        }) => {
+            let Some(subject) = action.base_address.clone().into_agent_pub_key() else {
+                return Ok(ValidateCallbackResult::Invalid(
+                    "Subject link base must be an agent".into(),
+                ));
+            };
+
+            let Some(target) = action.target_address.clone().into_action_hash() else {
+                return Ok(ValidateCallbackResult::Invalid(
+                    "Subject link target must be an attestation action hash".into(),
+                ));
+            };
+
+            let record = must_get_valid_record(target)?;
+
+            if record.action().author() != action.author() {
+                return Ok(ValidateCallbackResult::Invalid(
+                    "Subject link author must match the attestation issuer".into(),
+                ));
+            }
+
+            let attestation = record
+                .entry()
+                .to_app_option::<Attestation>()
+                .map_err(|error| wasm_error!(WasmErrorInner::Guest(error.to_string())))?;
+
+            let Some(attestation) = attestation else {
+                return Ok(ValidateCallbackResult::Invalid(
+                    "Subject link target must contain an attestation".into(),
+                ));
+            };
+
+            if attestation.subject != subject {
+                return Ok(ValidateCallbackResult::Invalid(
+                    "Subject link base must match the attestation subject".into(),
+                ));
+            }
+
+            if let Err(reason) = validate_attestation(&attestation) {
+                return Ok(ValidateCallbackResult::Invalid(reason));
+            }
+
+            Ok(ValidateCallbackResult::Valid)
+        }
+
+        FlatOp::Link(OpLink::CreateLink {
+            link_type: LinkTypes::IssuerToAttestation,
+            action,
+        }) => {
+            let Some(issuer) = action.base_address.clone().into_agent_pub_key() else {
+                return Ok(ValidateCallbackResult::Invalid(
+                    "Issuer link base must be an agent".into(),
+                ));
+            };
+
+            if &issuer != action.author() {
+                return Ok(ValidateCallbackResult::Invalid(
+                    "Issuer link base must match its author".into(),
+                ));
+            }
+
+            let Some(target) = action.target_address.clone().into_action_hash() else {
+                return Ok(ValidateCallbackResult::Invalid(
+                    "Issuer link target must be an attestation action hash".into(),
+                ));
+            };
+
+            let record = must_get_valid_record(target)?;
+
+            if record.action().author() != &issuer {
+                return Ok(ValidateCallbackResult::Invalid(
+                    "Issuer must match the original attestation author".into(),
+                ));
+            }
+
+            let attestation = record
+                .entry()
+                .to_app_option::<Attestation>()
+                .map_err(|error| wasm_error!(WasmErrorInner::Guest(error.to_string())))?;
+
+            let Some(attestation) = attestation else {
+                return Ok(ValidateCallbackResult::Invalid(
+                    "Issuer link target must contain an attestation".into(),
+                ));
+            };
+
+            if let Err(reason) = validate_attestation(&attestation) {
+                return Ok(ValidateCallbackResult::Invalid(reason));
+            }
+
+            Ok(ValidateCallbackResult::Valid)
+        }
+
+        FlatOp::Link(OpLink::DeleteLink {
+            link_type: LinkTypes::SubjectToAttestation | LinkTypes::IssuerToAttestation,
+            ..
+        }) => Ok(ValidateCallbackResult::Invalid(
+            "Published attestation discovery links cannot be deleted".into(),
+        )),
+
+        FlatOp::Link(OpLink::CreateLink {
             link_type: LinkTypes::AttestationToRevocation,
             action,
         }) => {
