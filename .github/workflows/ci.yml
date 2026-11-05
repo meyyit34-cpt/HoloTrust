@@ -75,4 +75,58 @@ jobs:
           extra_nix_config: |
             experimental-features = nix-command flakes
             substituters = https://cache.nixos.org https://holochain-ci.cachix.org
-            trusted-public-keys = cache.nixos.org-1:6NCHdD59X431
+            trusted-public-keys = cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY= holochain-ci.cachix.org-1:5IUSkZc0aoRS53rfkvH9Kid40NpyjwCMCzwRTXy+QN8=
+
+      - name: Compile native tests
+        run: cargo test --workspace --no-run
+
+      - name: Package DNA and hApp
+        if: ${{ !cancelled() && steps.nix.outcome == 'success' }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          nix develop --print-build-logs 'github:holochain/holonix?ref=main-0.7' -c bash -euo pipefail -c '
+            cd dnas/holotrust/workdir
+            hc --version
+            hc dna pack .
+            hc app pack .
+            test -s holotrust.dna
+            test -s holotrust.happ
+          '
+
+      - name: Run workspace tests
+        run: cargo test --workspace
+
+      - name: Verify packaged hApp
+        run: |
+          test -s dnas/holotrust/workdir/holotrust.dna
+          test -s dnas/holotrust/workdir/holotrust.happ
+
+      - name: Smoke test with real conductor
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          nix develop --print-build-logs 'github:holochain/holonix?ref=main-0.7' -c bash -euo pipefail -c '
+            node --version
+            npm install --prefix dev
+            echo "ci-passphrase" | hc sandbox --piped -f=9000 generate dnas/holotrust/workdir/holotrust.happ --app-id holotrust -r > sandbox.log 2>&1 &
+            SANDBOX_PID=$!
+            for i in $(seq 1 60); do
+              if (echo > /dev/tcp/127.0.0.1/9000) 2>/dev/null; then break; fi
+              sleep 2
+            done
+            if ! node dev/smoke-test.mjs; then
+              tail -n 80 sandbox.log || true
+              kill $SANDBOX_PID || true
+              exit 1
+            fi
+            kill $SANDBOX_PID || true
+          '
+
+      - name: Upload hApp bundle
+        uses: actions/upload-artifact@v7
+        with:
+          name: holotrust-happ
+          path: dnas/holotrust/workdir/holotrust.happ
+          if-no-files-found: error
