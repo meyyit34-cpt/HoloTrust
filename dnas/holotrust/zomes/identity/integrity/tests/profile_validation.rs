@@ -11,8 +11,7 @@ fn make_profile(name: &str, description: Option<&str>) -> AgentProfile {
 
 #[test]
 fn accepts_valid_profile() {
-    let profile = make_profile("Mehmet", Some("Valid profile"));
-    assert!(validate_profile(&profile).is_ok());
+    assert!(validate_profile(&make_profile("Mehmet", Some("Valid profile"))).is_ok());
 }
 
 #[test]
@@ -63,7 +62,5 @@ fn rejects_description_with_281_characters() {
 
 #[test]
 fn rejects_control_characters_in_description() {
-    assert!(
-        validate_profile(&make_profile("Mehmet", Some("Valid\nInvalid"))).is_err()
-    );
+    assert!(validate_profile(&make_profile("Mehmet", Some("Valid\nInvalid"))).is_err());
 }
