@@ -1,243 +1,245 @@
-HoloTrust Identity Specification
 
-* Specification: HT-IDENTITY-001
-* Version: 0.1.0
-* Status: Draft — Implementation Target
-* Related Decision: ADR-001
-* Scope: Identity MVP
+# HoloTrust Identity Specification
 
-1. Purpose
+- **Specification:** HT-IDENTITY-001
+- **Version:** 0.2.0
+- **Status:** Implemented MVP — Discovery behavior documented
+- **Related Decision:** ADR-001
+- **Scope:** Identity MVP and profile discovery
 
-This document defines the initial technical requirements for the HoloTrust Identity module.
+## 1. Purpose
+
+This document defines the technical behavior of the HoloTrust Identity module.
 
 The module provides a decentralized profile system for Holochain agents representing humans, AI agents, and software services.
 
-It establishes cryptographic identity association and public profile discovery.
+It associates public profiles with cryptographic Holochain agent identities and makes those profiles discoverable through DHT links.
 
-It does not establish legal identity or guarantee the truthfulness of profile claims.
+A published profile does not establish legal identity and does not guarantee the truthfulness of profile claims.
 
-2. Design Principles
+## 2. Design Principles
 
-The implementation MUST:
+The implementation follows these principles:
 
-1. Use the Holochain agent identity as the cryptographic identity anchor.
-2. Associate each profile with its author.
-3. Validate profile data at the integrity layer.
-4. Keep sensitive personal information out of public DHT entries.
-5. Support schema versioning.
-6. Reject invalid or unauthorized operations.
-7. Preserve the distinction between identity and verification.
+1. Holochain agent identity is the cryptographic identity anchor.
+2. Profile ownership is derived from the authenticated action author.
+3. Profile data is validated by the integrity zome.
+4. Sensitive personal information must not be stored in public DHT entries.
+5. Profile entries use explicit schema versioning.
+6. Invalid and unauthorized operations are rejected.
+7. Identity publication is distinct from verification.
+8. Updates preserve historical records while changing the current discovery index.
 
-3. Participant Types
+## 3. Participant Types
 
 The initial version supports:
 
+```rust
 pub enum AgentType {
     Human,
-    AI,
+    Ai,
     Service,
 }
+```
 
-These values represent declared participant categories only.
+The `Ai` variant is serialized as `AI`.
 
-They are not independently verified classifications.
+These values represent declared participant categories. They are not independently verified classifications.
 
-4. Profile Data Model
+## 4. Profile Data Model
 
-The conceptual profile structure is:
+The profile entry is:
 
+```rust
 pub struct AgentProfile {
     pub schema_version: u8,
     pub display_name: String,
     pub agent_type: AgentType,
     pub description: Option<String>,
 }
+```
 
-Field Constraints
+### Field constraints
 
-Field	Requirement
-schema_version	Must equal the supported initial version
-display_name	Required, non-empty, maximum 64 characters
-agent_type	Must be a supported enum variant
-description	Optional, maximum 280 characters
+| Field | Requirement |
+|---|---|
+| schema_version | Must equal 1 |
+| display_name | Required, 1–64 characters after trimming |
+| agent_type | Must be a supported enum variant |
+| description | Optional, maximum 280 characters |
 
-Length validation must be defined consistently and tested, including Unicode input.
+Control characters are rejected in display names and descriptions.
 
-The implementation must not accept empty or whitespace-only display names.
+Length validation counts Unicode characters.
 
-5. Identity Association
+## 5. Identity Association
 
-A profile must be associated with its author.
+A profile is associated with the Holochain agent that authored its creation action.
 
-The publishing agent is determined by the authenticated Holochain action context, not by a user-supplied author field.
+The author is obtained from the authenticated action context, not from a user-supplied author field.
 
-The initial MVP will allow one current profile per agent.
+The initial implementation permits one current profile per agent.
 
-The profile retrieval interface must support lookup by AgentPubKey.
+A second `create_profile` call is rejected when the agent already has a discoverable profile. The error directs the caller to `update_profile`.
 
-6. Required Operations
+## 6. Discovery Architecture
 
-6.1 create_profile
+### 6.1 Discovery link
 
-Creates a new profile for the calling agent.
+The identity integrity zome defines the `AgentToProfile` link type.
 
-Requirements:
+The link uses:
 
-* Validate all fields.
-* Reject invalid data.
-* Associate the profile with the authenticated author.
-* Prevent accidental duplicate initial profile creation.
-* Return a useful result or explicit error.
+- Base: the owning agent's `AgentPubKey`.
+- Target: the profile creation or update `ActionHash`.
+- Tag: `profile`.
 
-6.2 get_my_profile
+The coordinator creates this link through `index_profile`.
 
-Retrieves the current agent’s profile.
+The integrity zome verifies that:
 
-Requirements:
+1. The link base is an agent public key.
+2. The base agent matches the link author.
+3. The target is an action hash.
+4. The target record exists and is valid.
+5. The target record author matches the owning agent.
+6. The target contains an `AgentProfile`.
 
-* Use the current agent’s identity.
-* Return the profile if one exists.
-* Return a clear not-found result otherwise.
+### 6.2 Profile discovery
 
-6.3 get_profile
+`get_profile` accepts an `AgentPubKey`.
 
-Retrieves another agent’s public profile using an AgentPubKey.
+It queries `AgentToProfile` links for that agent and examines the returned links in reverse order.
 
-Requirements:
+A candidate is returned only when:
 
-* Validate the lookup input.
-* Resolve the profile through the selected discovery mechanism.
-* Return a clear not-found result if no profile exists.
+- The link author matches the requested agent.
+- The link target is an action hash.
+- The target record can be retrieved.
+- The target record author matches the requested agent.
+- The entry can be decoded as an `AgentProfile`.
+- The profile passes `validate_profile`.
 
-7. Integrity Layer
+Invalid, missing, or unrelated candidates are skipped.
 
-The Integrity Zome is responsible for enforcing data rules independently of coordinator workflows.
+If no valid candidate is found, the function returns `None`.
 
-It must validate:
+`get_my_profile` follows the same validation process using the calling agent's initial public key.
 
-* Entry structure.
-* Schema version.
-* Display name constraints.
-* Description constraints.
-* Supported participant type.
-* Entry author association.
-* Link and update constraints, where applicable.
+### 6.3 Discovery consistency
 
-Coordinator functions must never be treated as a substitute for integrity validation.
+DHT link availability depends on network propagation and consistency.
 
-8. Coordinator Layer
+The coordinator selects the latest valid candidate among the links returned by its query, but reverse iteration alone does not establish a globally ordered or globally deterministic result across all network states.
 
-The Coordinator Zome provides application-facing functions.
+Multi-agent tests use `await_consistency` before asserting that another agent can discover an updated profile.
 
-It is responsible for:
+## 7. Profile Update Semantics
 
-* Profile creation workflows.
-* Profile retrieval.
-* Current-agent profile lookup.
-* Discovery link creation and retrieval.
-* Clear error handling.
+The `update_profile` operation requires the action hash of the caller's current profile.
 
-The exact Holochain API signatures must follow the pinned and verified HDK version.
+The coordinator:
 
-9. Discovery Strategy
+1. Retrieves the referenced record.
+2. Confirms that the record belongs to the calling agent.
+3. Confirms that it contains an `AgentProfile`.
+4. Checks that the referenced profile is the current discoverable profile.
+5. Validates the replacement profile.
+6. Creates an update action.
+7. Deletes the old profile discovery link authored by the caller.
+8. Creates a new discovery link targeting the updated action.
 
-The initial discovery design will use a deterministic link from an agent identity to its profile entry.
+An update targeting an older profile version is rejected as stale.
 
-The final link base and path representation must be selected during implementation.
+The previous profile action remains in the source-chain history; removing its discovery link does not erase that historical action.
 
-The design must ensure:
+The current discovery index points to the updated profile after the new link becomes available.
 
-* One current profile can be resolved per agent.
-* Duplicate or conflicting links are handled safely.
-* Updates do not silently create ambiguous profile states.
-* Retrieval behavior is deterministic.
+## 8. Required Coordinator Operations
 
-The implementation must document how stale links and profile updates are handled.
+| Operation | Purpose |
+|---|---|
+| `create_profile` | Create the first profile for the calling agent |
+| `get_my_profile` | Retrieve the calling agent's current discoverable profile |
+| `get_profile` | Discover another agent's public profile |
+| `update_profile` | Update the current profile and refresh its discovery link |
 
-10. Security Requirements
+## 9. Integrity and Security
 
-The MVP must consider:
+The integrity zome validates profile schema, display name, description, participant type, ownership, and discovery link relationships.
 
-* Forged author claims.
-* Unauthorized profile updates.
-* Invalid entry data.
-* Oversized input.
-* Malformed lookup keys.
-* Duplicate creation attempts.
-* Unexpected schema versions.
-* Malicious or misleading profile descriptions.
+The coordinator additionally checks ownership and current-profile state before updating.
 
-No private keys or credentials may be stored in profile entries.
+Security requirements include:
 
-No civil identity verification is implied by profile publication.
+- Reject forged ownership claims.
+- Reject invalid profile data.
+- Reject duplicate initial profile creation.
+- Reject unauthorized profile updates.
+- Reject stale profile updates.
+- Reject discovery links that point to another agent's profile.
+- Avoid publishing private keys, credentials, or sensitive personal data.
 
-11. Testing Requirements
+Coordinator checks do not replace integrity validation.
 
-The implementation must include tests for:
+## 10. Testing Requirements and Current Coverage
 
-Valid Operations
+The current test suite includes:
 
-* Create a Human profile.
-* Create an AI profile.
-* Create a Service profile.
-* Retrieve the calling agent’s profile.
-* Retrieve another agent’s profile.
+- Profile creation and retrieval.
+- Human, AI, and Service profile validation.
+- Invalid display names and descriptions.
+- Unsupported schema versions.
+- Duplicate profile creation rejection.
+- Profile ownership checks.
+- Multi-agent profile discovery.
+- Unauthorized update rejection.
+- Successful profile updates.
+- Stale update rejection.
+- Discovery of the updated profile after DHT consistency.
 
-Invalid Operations
+### Remaining Phase 2 verification
 
-* Empty display name.
-* Whitespace-only display name.
-* Display name exceeding the limit.
-* Description exceeding the limit.
-* Unsupported schema version.
-* Unauthorized profile modification.
-* Duplicate profile creation.
-* Missing profile lookup.
+- [ ] Add an explicit test for duplicate `AgentToProfile` link handling.
+- [ ] Verify conflicting or repeated discovery links do not cause an incorrect profile to be returned.
+- [ ] Confirm the behavior through multi-agent tests where applicable.
 
-Multi-Agent Tests
+These items remain open until implemented and tested.
 
-At least two independent agents must be used to verify:
+## 11. Out of Scope for Version 0.2
 
-* Profile ownership.
-* Profile discovery.
-* Retrieval across agents.
-* Unauthorized modification rejection.
+The following are not provided by the Identity module:
 
-12. Out of Scope for Version 0.1
+- Legal or civil identity verification.
+- Global reputation scores.
+- Trust scoring algorithms.
+- Economic transactions.
+- HoloFuel integration.
+- hREA integration.
+- Identity recovery.
+- Key rotation.
+- Delegated authority.
+- Private profile storage.
+- A globally ordered DHT discovery index.
 
-The following are explicitly excluded:
+These capabilities require separate specifications and implementation stages.
 
-* Global reputation scores.
-* Trust scoring algorithms.
-* Economic transactions.
-* HoloFuel integration.
-* hREA integration.
-* Civil identity verification.
-* Identity recovery.
-* Key rotation.
-* Delegated authority.
-* Private profile storage.
+## 12. Definition of Done
 
-These features may be addressed in later specifications.
+Identity Discovery is complete only when:
 
-13. Definition of Done
+- [x] Agent-based profile discovery anchor is implemented.
+- [x] Profile creation and retrieval work.
+- [x] Profile ownership is validated.
+- [x] Invalid profile data is rejected.
+- [x] Multi-agent profile discovery is tested.
+- [x] Unauthorized profile updates are rejected.
+- [x] Stale profile updates are rejected.
+- [x] Updated profiles become discoverable after DHT consistency.
+- [x] Documentation reflects the implemented discovery and update behavior.
+- [ ] Explicit duplicate profile-link handling tests pass.
+- [ ] Conflicting link behavior is verified.
 
-Identity MVP 0.1 is complete only when:
+---
 
-* [ ]	Compatible Holochain toolchain is pinned.
-* [ ]	Integrity Zome compiles.
-* [ ]	Coordinator Zome compiles.
-* [ ]	Profile creation works.
-* [ ]	Profile retrieval works.
-* [ ]	Ownership validation works.
-* [ ]	Invalid inputs are rejected.
-* [ ]	Multi-agent tests pass.
-* [ ]	Documentation matches the implemented behavior.
-
-A design document or untested code is not considered a completed implementation.
-
-⸻
-
-HoloTrust Identity MVP 0.1
-
-Identity is the foundation. Verification is evidence. Reputation is contextual.
+HoloTrust — Identity is the foundation. Verification is evidence. Reputation is contextual.
