@@ -87,7 +87,7 @@ jobs:
         shell: bash
         run: |
           set -Eeuo pipefail
-          nix develop --print-build-logs 'github:holochain/holonix?ref=main-0.7' -c bash -euo pipefail -c '
+          nix develop --print-build-logs 'github:holochain/holonix?ref=a6cdfbd31afd2094b7ccc9b3bd7cf9442ec055da' -c bash -euo pipefail -c '
             cd dnas/holotrust/workdir
             hc --version
             hc dna pack .
@@ -109,7 +109,7 @@ jobs:
         run: |
           set -Eeuo pipefail
 
-          nix develop --print-build-logs 'github:holochain/holonix?ref=main-0.7' -c bash -euo pipefail -c '
+          nix develop --print-build-logs 'github:holochain/holonix?ref=a6cdfbd31afd2094b7ccc9b3bd7cf9442ec055da' -c bash -euo pipefail -c '
             node --version
             npm install --prefix dev
 
