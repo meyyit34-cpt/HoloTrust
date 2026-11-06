@@ -46,9 +46,7 @@ pub enum LinkTypes {
     SubjectToContextualReview,
 }
 
-pub fn validate_contextual_review(
-    review: &ContextualReview,
-) -> Result<(), String> {
+pub fn validate_contextual_review(review: &ContextualReview) -> Result<(), String> {
     if review.schema_version != 1 {
         return Err("Unsupported contextual review schema version".into());
     }
@@ -84,18 +82,14 @@ pub fn validate_contextual_review(
     Ok(())
 }
 
-fn validate_evidence(
-    review: &ContextualReview,
-) -> ExternResult<ValidateCallbackResult> {
+fn validate_evidence(review: &ContextualReview) -> ExternResult<ValidateCallbackResult> {
     for evidence_hash in &review.evidence_attestations {
         let record = must_get_valid_record(evidence_hash.clone())?;
 
         let attestation = record
             .entry()
             .to_app_option::<Attestation>()
-            .map_err(|error| {
-                wasm_error!(WasmErrorInner::Guest(error.to_string()))
-            })?;
+            .map_err(|error| wasm_error!(WasmErrorInner::Guest(error.to_string())))?;
 
         let Some(attestation) = attestation else {
             return Ok(ValidateCallbackResult::Invalid(
@@ -130,26 +124,21 @@ fn validate_review_history(
         ));
     };
 
-    let review_entry_type =
-        EntryType::App(UnitEntryTypes::ContextualReview.try_into()?);
+    let review_entry_type = EntryType::App(UnitEntryTypes::ContextualReview.try_into()?);
 
-    let activity =
-        must_get_agent_activity(author.clone(), ChainFilter::new(chain_top))?;
+    let activity = must_get_agent_activity(author.clone(), ChainFilter::new(chain_top))?;
 
     for item in activity {
         if item.action.hashed.content.entry_type() != Some(&review_entry_type) {
             continue;
         }
 
-        let record =
-            must_get_valid_record(item.action.hashed.hash.clone())?;
+        let record = must_get_valid_record(item.action.hashed.hash.clone())?;
 
         let previous_review = record
             .entry()
             .to_app_option::<ContextualReview>()
-            .map_err(|error| {
-                wasm_error!(WasmErrorInner::Guest(error.to_string()))
-            })?;
+            .map_err(|error| wasm_error!(WasmErrorInner::Guest(error.to_string())))?;
 
         let Some(previous_review) = previous_review else {
             continue;
@@ -205,15 +194,12 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
         )),
 
         FlatOp::Delete(OpDelete { action }) => {
-            let original =
-                must_get_valid_record(action.deletes_address.clone())?;
+            let original = must_get_valid_record(action.deletes_address.clone())?;
 
             let review = original
                 .entry()
                 .to_app_option::<ContextualReview>()
-                .map_err(|error| {
-                    wasm_error!(WasmErrorInner::Guest(error.to_string()))
-                })?;
+                .map_err(|error| wasm_error!(WasmErrorInner::Guest(error.to_string())))?;
 
             if review.is_some() {
                 return Ok(ValidateCallbackResult::Invalid(
@@ -228,17 +214,13 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
             link_type: LinkTypes::SubjectToContextualReview,
             action,
         }) => {
-            let Some(subject) =
-                action.base_address.clone().into_agent_pub_key()
-            else {
+            let Some(subject) = action.base_address.clone().into_agent_pub_key() else {
                 return Ok(ValidateCallbackResult::Invalid(
                     "Review link base must be an agent".into(),
                 ));
             };
 
-            let Some(review_hash) =
-                action.target_address.clone().into_action_hash()
-            else {
+            let Some(review_hash) = action.target_address.clone().into_action_hash() else {
                 return Ok(ValidateCallbackResult::Invalid(
                     "Review link target must be an action hash".into(),
                 ));
@@ -255,9 +237,7 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
             let review = record
                 .entry()
                 .to_app_option::<ContextualReview>()
-                .map_err(|error| {
-                    wasm_error!(WasmErrorInner::Guest(error.to_string()))
-                })?;
+                .map_err(|error| wasm_error!(WasmErrorInner::Guest(error.to_string())))?;
 
             let Some(review) = review else {
                 return Ok(ValidateCallbackResult::Invalid(
@@ -303,9 +283,7 @@ mod tests {
             domain: ReputationDomain::Commerce,
             rating: 5,
             comment: Some("Completed successfully".into()),
-            evidence_attestations: vec![
-                ActionHash::from_raw_36(vec![1; 36]),
-            ],
+            evidence_attestations: vec![ActionHash::from_raw_36(vec![1; 36])],
         };
 
         assert!(validate_contextual_review(&review).is_ok());
@@ -320,9 +298,7 @@ mod tests {
             domain: ReputationDomain::Technical,
             rating: 6,
             comment: None,
-            evidence_attestations: vec![
-                ActionHash::from_raw_36(vec![1; 36]),
-            ],
+            evidence_attestations: vec![ActionHash::from_raw_36(vec![1; 36])],
         };
 
         assert!(validate_contextual_review(&review).is_err());
@@ -350,9 +326,7 @@ mod tests {
             domain: ReputationDomain::Reliability,
             rating: 4,
             comment: None,
-            evidence_attestations: vec![
-                ActionHash::from_raw_36(vec![1; 36]),
-            ],
+            evidence_attestations: vec![ActionHash::from_raw_36(vec![1; 36])],
         };
 
         assert!(validate_contextual_review(&review).is_err());
