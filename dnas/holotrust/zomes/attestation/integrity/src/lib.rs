@@ -200,7 +200,7 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
             }
 
             if let Some(expires_at) = &attestation.expires_at {
-                if expires_at <= &action.timestamp {
+                if expires_at <= &action.timestamp() {
                     return Ok(ValidateCallbackResult::Invalid(
                         "Attestation expiry must be later than its issuance time".into(),
                     ));
