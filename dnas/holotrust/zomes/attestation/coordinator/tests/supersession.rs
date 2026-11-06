@@ -1,6 +1,6 @@
 use attestation_coordinator::{
     AttestationStatus, AttestationVerification, CreateAttestationInput, GetAttestationInput,
-    RevokeAttestationInput, VerifyAttestationInput,
+    GetAttestationsForSubjectInput, RevokeAttestationInput, VerifyAttestationInput,
 };
 use attestation_integrity::{ClaimType, EvidenceReference};
 use holochain::prelude::ActionHash;
@@ -52,6 +52,7 @@ async fn supersession_and_revocation_require_authorization_and_preserve_history(
 
     let issuer_a_zome = apps[0].cells()[0].zome("attestation_coordinator");
     let issuer_b_zome = apps[1].cells()[0].zome("attestation_coordinator");
+    let subject_zome = apps[2].cells()[0].zome("attestation_coordinator");
 
     let original: ActionHash = conductors[0]
         .sweet_handle()
@@ -66,11 +67,44 @@ async fn supersession_and_revocation_require_authorization_and_preserve_history(
         .await
         .expect("Original attestation did not reach DHT consistency");
 
-    // Verify the original attestation and its signed author provenance.
-    let verification: AttestationVerification = conductors[0]
+    // A third agent must be able to discover and retrieve the original attestation.
+    let subject_attestations = conductors[2]
         .sweet_handle()
         .call(
-            &issuer_a_zome,
+            &subject_zome,
+            "get_attestations_for_subject",
+            GetAttestationsForSubjectInput {
+                subject: subject.clone(),
+            },
+        )
+        .await;
+
+    assert!(
+        !subject_attestations.is_empty(),
+        "A third agent must discover the subject's original attestation"
+    );
+
+    let discovered_original = conductors[2]
+        .sweet_handle()
+        .call(
+            &subject_zome,
+            "get_attestation",
+            GetAttestationInput {
+                action_hash: original.clone(),
+            },
+        )
+        .await;
+
+    assert!(
+        discovered_original.is_some(),
+        "A third agent must retrieve the original attestation"
+    );
+
+    // Verify the original attestation from an independent agent.
+    let third_party_verification: AttestationVerification = conductors[2]
+        .sweet_handle()
+        .call(
+            &subject_zome,
             "verify_attestation",
             VerifyAttestationInput {
                 action_hash: original.clone(),
@@ -78,12 +112,12 @@ async fn supersession_and_revocation_require_authorization_and_preserve_history(
         )
         .await;
 
-    assert_eq!(verification.attestation, original);
-    assert_eq!(verification.issuer, issuer_a);
-    assert_eq!(verification.subject, subject);
-    assert_eq!(verification.claim_type, ClaimType::Skill);
-    assert_eq!(verification.claim, "Rust development");
-    assert_eq!(verification.evidence_count, 0);
+    assert_eq!(third_party_verification.attestation, original);
+    assert_eq!(third_party_verification.issuer, issuer_a);
+    assert_eq!(third_party_verification.subject, subject);
+    assert_eq!(third_party_verification.claim_type, ClaimType::Skill);
+    assert_eq!(third_party_verification.claim, "Rust development");
+    assert_eq!(third_party_verification.evidence_count, 0);
 
     let replacement: ActionHash = conductors[0]
         .sweet_handle()
@@ -104,6 +138,42 @@ async fn supersession_and_revocation_require_authorization_and_preserve_history(
     await_consistency(apps.iter().flat_map(|app| app.cells().iter()))
         .await
         .expect("Replacement attestation did not reach DHT consistency");
+
+    // The independent agent must discover both historical attestations.
+    let updated_subject_attestations = conductors[2]
+        .sweet_handle()
+        .call(
+            &subject_zome,
+            "get_attestations_for_subject",
+            GetAttestationsForSubjectInput {
+                subject: subject.clone(),
+            },
+        )
+        .await;
+
+    assert!(
+        updated_subject_attestations.len() >= 2,
+        "A third agent must discover both original and replacement attestations"
+    );
+
+    let third_party_replacement: AttestationVerification = conductors[2]
+        .sweet_handle()
+        .call(
+            &subject_zome,
+            "verify_attestation",
+            VerifyAttestationInput {
+                action_hash: replacement.clone(),
+            },
+        )
+        .await;
+
+    assert_eq!(third_party_replacement.attestation, replacement);
+    assert_eq!(third_party_replacement.issuer, issuer_a);
+    assert_eq!(third_party_replacement.subject, subject);
+    assert_eq!(
+        third_party_replacement.claim,
+        "Advanced Rust development"
+    );
 
     let cross_issuer: Result<ActionHash, _> = conductors[1]
         .sweet_handle()
@@ -177,6 +247,24 @@ async fn supersession_and_revocation_require_authorization_and_preserve_history(
         original_status,
         AttestationStatus::Superseded,
         "The original attestation should resolve as superseded"
+    );
+
+    // The independent agent must also resolve the original as superseded.
+    let third_party_original_status: AttestationStatus = conductors[2]
+        .sweet_handle()
+        .call(
+            &subject_zome,
+            "resolve_attestation_status",
+            GetAttestationInput {
+                action_hash: original.clone(),
+            },
+        )
+        .await;
+
+    assert_eq!(
+        third_party_original_status,
+        AttestationStatus::Superseded,
+        "A third agent must recognize the original attestation as superseded"
     );
 
     let replacement_status: AttestationStatus = conductors[0]
@@ -254,7 +342,7 @@ async fn supersession_and_revocation_require_authorization_and_preserve_history(
             &issuer_a_zome,
             "resolve_attestation_status",
             GetAttestationInput {
-                action_hash: replacement,
+                action_hash: replacement.clone(),
             },
         )
         .await;
@@ -263,5 +351,23 @@ async fn supersession_and_revocation_require_authorization_and_preserve_history(
         revoked_status,
         AttestationStatus::Revoked,
         "A revoked attestation must resolve as revoked"
+    );
+
+    // The independent agent must observe the revocation through the DHT.
+    let third_party_revoked_status: AttestationStatus = conductors[2]
+        .sweet_handle()
+        .call(
+            &subject_zome,
+            "resolve_attestation_status",
+            GetAttestationInput {
+                action_hash: replacement,
+            },
+        )
+        .await;
+
+    assert_eq!(
+        third_party_revoked_status,
+        AttestationStatus::Revoked,
+        "A third agent must recognize the replacement as revoked"
     );
 }
