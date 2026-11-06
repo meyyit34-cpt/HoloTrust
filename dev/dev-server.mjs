@@ -14,22 +14,25 @@ const APP_PORT = Number(process.env.HC_APP_PORT ?? 9101);
 const WEB_PORT = Number(process.env.WEB_PORT ?? 8080);
 const HOST = process.env.HOST ?? "127.0.0.1";
 const APP_ID = process.env.HC_APP_ID ?? "holotrust";
-
-// Both smoke-test and dev-server must use the same origin.
 const ORIGIN = "holotrust-smoke";
-
 const ROLE_NAME = "identity";
-const ZOME_NAME = "identity_coordinator";
 
-const ALLOWED_FUNCTIONS = new Set([
-  "create_profile",
-  "get_my_profile",
-  "get_profile",
-  "update_profile",
-  "create_review",
-  "get_reviews",
-  "get_reputation_summary"
-]);
+const ALLOWED_FUNCTIONS = {
+  identity_coordinator: new Set([
+    "create_profile",
+    "get_my_profile",
+    "get_profile",
+    "update_profile",
+    "create_review",
+    "get_reviews",
+    "get_reputation_summary"
+  ]),
+  reputation_coordinator: new Set([
+    "create_contextual_review",
+    "get_contextual_reviews",
+    "get_contextual_reputation_summary"
+  ])
+};
 
 const WEB_ROOT = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -61,7 +64,7 @@ async function setup() {
   } catch (error) {
     console.log(
       "INFO: app interface may already exist: " +
-        (error?.message ?? error)
+      (error?.message ?? error)
     );
   }
 
@@ -193,9 +196,21 @@ async function main() {
           return;
         }
 
-        const fnName = url.pathname.slice("/hc/call/".length);
+        const parts = url.pathname
+          .slice("/hc/call/".length)
+          .split("/");
 
-        if (!ALLOWED_FUNCTIONS.has(fnName)) {
+        if (parts.length !== 2) {
+          sendMsgpack(res, 400, {
+            error: "Expected zome name and function name"
+          });
+          return;
+        }
+
+        const [zomeName, fnName] = parts.map(decodeURIComponent);
+        const allowed = ALLOWED_FUNCTIONS[zomeName];
+
+        if (!allowed || !allowed.has(fnName)) {
           sendMsgpack(res, 403, {
             error: "Function not allowed"
           });
@@ -209,7 +224,7 @@ async function main() {
         try {
           const result = await ctx.appWs.callZome({
             cell_id: ctx.cellId,
-            zome_name: ZOME_NAME,
+            zome_name: zomeName,
             fn_name: fnName,
             provenance: ctx.agentKey,
             payload
@@ -244,9 +259,9 @@ async function main() {
   server.listen(WEB_PORT, HOST, () => {
     console.log(
       "INFO: HoloTrust dev server on http://" +
-        HOST +
-        ":" +
-        WEB_PORT
+      HOST +
+      ":" +
+      WEB_PORT
     );
   });
 }
