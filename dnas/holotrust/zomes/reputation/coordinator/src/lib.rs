@@ -56,7 +56,7 @@ pub fn create_contextual_review(
         input.subject_agent,
         review_hash.clone(),
         LinkTypes::SubjectToContextualReview,
-        (),
+        "review",
     )?;
 
     Ok(review_hash)
@@ -124,7 +124,11 @@ pub fn get_contextual_reviews(
 pub fn get_contextual_reputation_summary(
     input: GetContextualReviewsInput,
 ) -> ExternResult<Vec<ContextualReputationSummary>> {
-    let records = get_contextual_reviews(input)?;
+    // Summary must inspect every domain, even if the caller supplied a filter.
+    let records = get_contextual_reviews(GetContextualReviewsInput {
+        subject_agent: input.subject_agent,
+        domain: None,
+    })?;
 
     let domains = vec![
         ReputationDomain::Commerce,
