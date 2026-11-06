@@ -11,4 +11,3 @@ crate-type = ["cdylib", "rlib"]
 hdi = { workspace = true }
 holochain_serialized_bytes = { workspace = true }
 serde = { workspace = true }
-attestation_integrity = { path = "../../attestation/integrity" }
