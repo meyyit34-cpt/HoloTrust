@@ -1,4 +1,3 @@
-
 [workspace]
 resolver = "2"
 members = [
@@ -6,6 +5,7 @@ members = [
     "dnas/holotrust/zomes/identity/coordinator",
     "dnas/holotrust/zomes/attestation/integrity",
     "dnas/holotrust/zomes/attestation/coordinator",
+    "dnas/holotrust/zomes/reputation/integrity",
 ]
 
 [workspace.package]
