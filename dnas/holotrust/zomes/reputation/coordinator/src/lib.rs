@@ -26,6 +26,55 @@ pub struct ContextualReputationSummary {
     pub average_rating: f64,
 }
 
+#[derive(Serialize, Deserialize, Debug)]
+struct ResolveAttestationStatusInput {
+    action_hash: ActionHash,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+enum AttestationStatus {
+    Active,
+    Revoked,
+    Expired,
+    Superseded,
+}
+
+fn ensure_active_evidence(evidence: &[ActionHash]) -> ExternResult<()> {
+    for action_hash in evidence {
+        let response = call(
+            CallTargetCell::Local,
+            "attestation_coordinator",
+            "resolve_attestation_status".into(),
+            None,
+            ResolveAttestationStatusInput {
+                action_hash: action_hash.clone(),
+            },
+        )?;
+
+        let status: AttestationStatus = match response {
+            ZomeCallResponse::Ok(output) => output
+                .decode()
+                .map_err(|error| wasm_error!(error.to_string()))?,
+            _ => {
+                return Err(wasm_error!(WasmErrorInner::Guest(
+                    "Attestation status could not be verified".into()
+                )));
+            }
+        };
+
+        if status != AttestationStatus::Active {
+            return Err(wasm_error!(WasmErrorInner::Guest(
+                format!(
+                    "Evidence {:?} is not active: {:?}",
+                    action_hash, status
+                )
+            )));
+        }
+    }
+
+    Ok(())
+}
+
 #[hdk_extern]
 pub fn create_contextual_review(
     input: CreateContextualReviewInput,
@@ -49,6 +98,8 @@ pub fn create_contextual_review(
 
     validate_contextual_review(&review)
         .map_err(|reason| wasm_error!(WasmErrorInner::Guest(reason)))?;
+
+    ensure_active_evidence(&review.evidence_attestations)?;
 
     let review_hash = create_entry(EntryTypes::ContextualReview(review))?;
 
@@ -112,6 +163,8 @@ pub fn get_contextual_reviews(
             continue;
         }
 
+        ensure_active_evidence(&review.evidence_attestations)?;
+
         records.push(record);
     }
 
@@ -124,7 +177,6 @@ pub fn get_contextual_reviews(
 pub fn get_contextual_reputation_summary(
     input: GetContextualReviewsInput,
 ) -> ExternResult<Vec<ContextualReputationSummary>> {
-    // Summary must inspect every domain, even if the caller supplied a filter.
     let records = get_contextual_reviews(GetContextualReviewsInput {
         subject_agent: input.subject_agent,
         domain: None,
