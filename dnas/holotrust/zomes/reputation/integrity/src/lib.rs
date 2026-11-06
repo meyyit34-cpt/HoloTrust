@@ -1,4 +1,3 @@
-
 use attestation_integrity::Attestation;
 use hdi::prelude::*;
 use serde::{Deserialize, Serialize};
