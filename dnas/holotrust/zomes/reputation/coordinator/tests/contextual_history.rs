@@ -1,6 +1,4 @@
-use attestation_coordinator::{
-    AttestationStatus, CreateAttestationInput, GetAttestationInput,
-};
+use attestation_coordinator::{AttestationStatus, CreateAttestationInput, GetAttestationInput};
 use attestation_integrity::{ClaimType, EvidenceReference};
 use holochain::prelude::{ActionHash, Record};
 use holochain::sweettest::*;
@@ -12,8 +10,7 @@ use std::path::PathBuf;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn superseded_evidence_preserves_history_but_not_current_reputation() {
-    let dna_path =
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../workdir/holotrust.dna");
+    let dna_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../workdir/holotrust.dna");
 
     assert!(
         dna_path.exists(),
@@ -156,8 +153,8 @@ async fn superseded_evidence_preserves_history_but_not_current_reputation() {
     );
 
     assert_eq!(
-        historical_reviews[0].action().hash,
-        original_review,
+        historical_reviews[0].action_address(),
+        &original_review,
         "The original review record must remain unchanged"
     );
 
