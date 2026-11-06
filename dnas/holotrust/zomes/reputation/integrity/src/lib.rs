@@ -1,3 +1,6 @@
+use hdi::prelude::*;
+use serde::{Deserialize, Serialize};
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum ClaimType {
     Skill,
@@ -15,7 +18,7 @@ pub enum EvidenceReference {
     External { url: String, sha256: String },
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[hdk_entry_helper]
 pub struct Attestation {
     pub schema_version: u8,
     pub subject: AgentPubKey,
@@ -24,8 +27,7 @@ pub struct Attestation {
     pub evidence: Vec<EvidenceReference>,
     pub expires_at: Option<Timestamp>,
     pub supersedes: Option<ActionHash>,
-}use hdi::prelude::*;
-use serde::{Deserialize, Serialize};
+}
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ReputationDomain {
