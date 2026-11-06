@@ -202,13 +202,24 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
             validate_supersedes(action.author(), &attestation)
         }
 
-        FlatOp::CreateEntry(OpEntry::CreateEntry {
-            app_entry: EntryTypes::AttestationRevocation(revocation),
+                FlatOp::CreateEntry(OpEntry::CreateEntry {
+            app_entry: EntryTypes::Attestation(attestation),
             action,
         }) => {
-            if let Err(reason) = validate_revocation(&revocation) {
+            if let Err(reason) = validate_attestation(&attestation) {
                 return Ok(ValidateCallbackResult::Invalid(reason));
             }
+
+            if let Some(expires_at) = &attestation.expires_at {
+                if expires_at <= &action.timestamp {
+                    return Ok(ValidateCallbackResult::Invalid(
+                        "Attestation expiry must be later than its issuance time".into(),
+                    ));
+                }
+            }
+
+            validate_supersedes(action.author(), &attestation)
+        }
 
             let original = must_get_valid_record(revocation.attestation.clone())?;
 
