@@ -24,8 +24,7 @@ fn attestation_input(
 
 #[tokio::test(flavor = "multi_thread")]
 async fn supersession_and_revocation_require_authorization_and_preserve_history() {
-    let dna_path =
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../workdir/holotrust.dna");
+    let dna_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../workdir/holotrust.dna");
 
     assert!(
         dna_path.exists(),
@@ -52,18 +51,12 @@ async fn supersession_and_revocation_require_authorization_and_preserve_history(
     let issuer_a_zome = apps[0].cells()[0].zome("attestation_coordinator");
     let issuer_b_zome = apps[1].cells()[0].zome("attestation_coordinator");
 
-    // Issuer A creates the original attestation.
     let original: ActionHash = conductors[0]
         .sweet_handle()
         .call(
             &issuer_a_zome,
             "create_attestation",
-            attestation_input(
-                subject.clone(),
-                ClaimType::Skill,
-                "Rust development",
-                None,
-            ),
+            attestation_input(subject.clone(), ClaimType::Skill, "Rust development", None),
         )
         .await;
 
@@ -71,7 +64,6 @@ async fn supersession_and_revocation_require_authorization_and_preserve_history(
         .await
         .expect("Original attestation did not reach DHT consistency");
 
-    // Issuer A supersedes its own attestation.
     let replacement: ActionHash = conductors[0]
         .sweet_handle()
         .call(
@@ -92,7 +84,6 @@ async fn supersession_and_revocation_require_authorization_and_preserve_history(
         .await
         .expect("Replacement attestation did not reach DHT consistency");
 
-    // Another issuer cannot supersede Issuer A's attestation.
     let cross_issuer: Result<ActionHash, _> = conductors[1]
         .sweet_handle()
         .call_fallible(
@@ -112,7 +103,6 @@ async fn supersession_and_revocation_require_authorization_and_preserve_history(
         "A different issuer must not supersede another issuer's attestation"
     );
 
-    // Supersession cannot change the subject.
     let different_subject: Result<ActionHash, _> = conductors[0]
         .sweet_handle()
         .call_fallible(
@@ -132,7 +122,6 @@ async fn supersession_and_revocation_require_authorization_and_preserve_history(
         "Supersession must preserve the original subject"
     );
 
-    // Supersession cannot change the claim type.
     let different_claim_type: Result<ActionHash, _> = conductors[0]
         .sweet_handle()
         .call_fallible(
@@ -152,7 +141,6 @@ async fn supersession_and_revocation_require_authorization_and_preserve_history(
         "Supersession must preserve the original claim type"
     );
 
-    // The original record must resolve as superseded.
     let original_status: AttestationStatus = conductors[0]
         .sweet_handle()
         .call(
@@ -170,7 +158,6 @@ async fn supersession_and_revocation_require_authorization_and_preserve_history(
         "The original attestation should resolve as superseded"
     );
 
-    // The replacement must initially remain active.
     let replacement_status: AttestationStatus = conductors[0]
         .sweet_handle()
         .call(
@@ -188,7 +175,6 @@ async fn supersession_and_revocation_require_authorization_and_preserve_history(
         "The replacement attestation should initially remain active"
     );
 
-    // A different issuer cannot revoke Issuer A's replacement.
     let unauthorized_revocation: Result<ActionHash, _> = conductors[1]
         .sweet_handle()
         .call_fallible(
@@ -206,7 +192,6 @@ async fn supersession_and_revocation_require_authorization_and_preserve_history(
         "A different issuer must not revoke another issuer's attestation"
     );
 
-    // The original issuer can revoke its own replacement.
     let revocation: ActionHash = conductors[0]
         .sweet_handle()
         .call(
@@ -225,7 +210,6 @@ async fn supersession_and_revocation_require_authorization_and_preserve_history(
         .await
         .expect("Revocation did not reach DHT consistency");
 
-    // The same attestation cannot be revoked twice.
     let duplicate_revocation: Result<ActionHash, _> = conductors[0]
         .sweet_handle()
         .call_fallible(
@@ -243,7 +227,6 @@ async fn supersession_and_revocation_require_authorization_and_preserve_history(
         "Duplicate revocation must be rejected"
     );
 
-    // Revocation takes precedence in status resolution.
     let revoked_status: AttestationStatus = conductors[0]
         .sweet_handle()
         .call(
