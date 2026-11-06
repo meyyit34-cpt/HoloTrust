@@ -3,7 +3,7 @@ use attestation_coordinator::{
     GetAttestationsForSubjectInput, RevokeAttestationInput, VerifyAttestationInput,
 };
 use attestation_integrity::{ClaimType, EvidenceReference};
-use holochain::prelude::ActionHash;
+use holochain::prelude::{ActionHash, Record};
 use holochain::sweettest::*;
 use std::path::PathBuf;
 
@@ -67,7 +67,7 @@ async fn supersession_and_revocation_require_authorization_and_preserve_history(
         .await
         .expect("Original attestation did not reach DHT consistency");
 
-    let subject_attestations: Vec<holochain::prelude::Record> = conductors[2]
+    let subject_attestations: Vec<Record> = conductors[2]
         .sweet_handle()
         .call(
             &subject_zome,
@@ -83,7 +83,7 @@ async fn supersession_and_revocation_require_authorization_and_preserve_history(
         "A third agent must discover the subject's original attestation"
     );
 
-    let discovered_original = conductors[2]
+    let discovered_original: Option<Record> = conductors[2]
         .sweet_handle()
         .call(
             &subject_zome,
@@ -137,7 +137,7 @@ async fn supersession_and_revocation_require_authorization_and_preserve_history(
         .await
         .expect("Replacement attestation did not reach DHT consistency");
 
-    let updated_subject_attestations: Vec<holochain::prelude::Record> = conductors[2]
+    let updated_subject_attestations: Vec<Record> = conductors[2]
         .sweet_handle()
         .call(
             &subject_zome,
