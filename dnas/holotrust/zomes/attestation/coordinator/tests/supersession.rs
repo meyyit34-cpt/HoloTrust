@@ -1,5 +1,6 @@
 use attestation_coordinator::{
-    AttestationStatus, CreateAttestationInput, GetAttestationInput, RevokeAttestationInput,
+    AttestationStatus, CreateAttestationInput, GetAttestationInput,
+    RevokeAttestationInput, AttestationVerification, VerifyAttestationInput,
 };
 use attestation_integrity::{ClaimType, EvidenceReference};
 use holochain::prelude::ActionHash;
@@ -24,7 +25,8 @@ fn attestation_input(
 
 #[tokio::test(flavor = "multi_thread")]
 async fn supersession_and_revocation_require_authorization_and_preserve_history() {
-    let dna_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../workdir/holotrust.dna");
+    let dna_path =
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../workdir/holotrust.dna");
 
     assert!(
         dna_path.exists(),
@@ -45,6 +47,7 @@ async fn supersession_and_revocation_require_authorization_and_preserve_history(
 
     conductors.exchange_peer_info().await;
 
+    let issuer_a = apps[0].agent().clone();
     let issuer_b = apps[1].agent().clone();
     let subject = apps[2].agent().clone();
 
@@ -56,13 +59,37 @@ async fn supersession_and_revocation_require_authorization_and_preserve_history(
         .call(
             &issuer_a_zome,
             "create_attestation",
-            attestation_input(subject.clone(), ClaimType::Skill, "Rust development", None),
+            attestation_input(
+                subject.clone(),
+                ClaimType::Skill,
+                "Rust development",
+                None,
+            ),
         )
         .await;
 
     await_consistency(apps.iter().flat_map(|app| app.cells().iter()))
         .await
         .expect("Original attestation did not reach DHT consistency");
+
+    // Verify the original attestation and its signed author provenance.
+    let verification: AttestationVerification = conductors[0]
+        .sweet_handle()
+        .call(
+            &issuer_a_zome,
+            "verify_attestation",
+            VerifyAttestationInput {
+                action_hash: original.clone(),
+            },
+        )
+        .await;
+
+    assert_eq!(verification.attestation, original);
+    assert_eq!(verification.issuer, issuer_a);
+    assert_eq!(verification.subject, subject);
+    assert_eq!(verification.claim_type, ClaimType::Skill);
+    assert_eq!(verification.claim, "Rust development");
+    assert_eq!(verification.evidence_count, 0);
 
     let replacement: ActionHash = conductors[0]
         .sweet_handle()
