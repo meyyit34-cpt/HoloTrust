@@ -1,6 +1,6 @@
 use attestation_coordinator::{
-    AttestationStatus, CreateAttestationInput, GetAttestationInput,
-    RevokeAttestationInput, AttestationVerification, VerifyAttestationInput,
+    AttestationStatus, AttestationVerification, CreateAttestationInput, GetAttestationInput,
+    RevokeAttestationInput, VerifyAttestationInput,
 };
 use attestation_integrity::{ClaimType, EvidenceReference};
 use holochain::prelude::ActionHash;
@@ -25,8 +25,7 @@ fn attestation_input(
 
 #[tokio::test(flavor = "multi_thread")]
 async fn supersession_and_revocation_require_authorization_and_preserve_history() {
-    let dna_path =
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../workdir/holotrust.dna");
+    let dna_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../workdir/holotrust.dna");
 
     assert!(
         dna_path.exists(),
@@ -59,12 +58,7 @@ async fn supersession_and_revocation_require_authorization_and_preserve_history(
         .call(
             &issuer_a_zome,
             "create_attestation",
-            attestation_input(
-                subject.clone(),
-                ClaimType::Skill,
-                "Rust development",
-                None,
-            ),
+            attestation_input(subject.clone(), ClaimType::Skill, "Rust development", None),
         )
         .await;
 
