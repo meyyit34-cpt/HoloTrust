@@ -1,4 +1,3 @@
-
 use attestation_coordinator::{CreateAttestationInput, RevokeAttestationInput};
 use attestation_integrity::{ClaimType, EvidenceReference};
 use holochain::prelude::{ActionHash, Record};
