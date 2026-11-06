@@ -67,7 +67,6 @@ async fn supersession_and_revocation_require_authorization_and_preserve_history(
         .await
         .expect("Original attestation did not reach DHT consistency");
 
-    // A third agent must be able to discover and retrieve the original attestation.
     let subject_attestations = conductors[2]
         .sweet_handle()
         .call(
@@ -100,7 +99,6 @@ async fn supersession_and_revocation_require_authorization_and_preserve_history(
         "A third agent must retrieve the original attestation"
     );
 
-    // Verify the original attestation from an independent agent.
     let third_party_verification: AttestationVerification = conductors[2]
         .sweet_handle()
         .call(
@@ -139,7 +137,6 @@ async fn supersession_and_revocation_require_authorization_and_preserve_history(
         .await
         .expect("Replacement attestation did not reach DHT consistency");
 
-    // The independent agent must discover both historical attestations.
     let updated_subject_attestations = conductors[2]
         .sweet_handle()
         .call(
@@ -170,10 +167,7 @@ async fn supersession_and_revocation_require_authorization_and_preserve_history(
     assert_eq!(third_party_replacement.attestation, replacement);
     assert_eq!(third_party_replacement.issuer, issuer_a);
     assert_eq!(third_party_replacement.subject, subject);
-    assert_eq!(
-        third_party_replacement.claim,
-        "Advanced Rust development"
-    );
+    assert_eq!(third_party_replacement.claim, "Advanced Rust development");
 
     let cross_issuer: Result<ActionHash, _> = conductors[1]
         .sweet_handle()
@@ -249,7 +243,6 @@ async fn supersession_and_revocation_require_authorization_and_preserve_history(
         "The original attestation should resolve as superseded"
     );
 
-    // The independent agent must also resolve the original as superseded.
     let third_party_original_status: AttestationStatus = conductors[2]
         .sweet_handle()
         .call(
@@ -353,7 +346,6 @@ async fn supersession_and_revocation_require_authorization_and_preserve_history(
         "A revoked attestation must resolve as revoked"
     );
 
-    // The independent agent must observe the revocation through the DHT.
     let third_party_revoked_status: AttestationStatus = conductors[2]
         .sweet_handle()
         .call(
