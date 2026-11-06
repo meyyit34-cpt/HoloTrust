@@ -1,5 +1,30 @@
-use attestation_integrity::Attestation;
-use hdi::prelude::*;
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub enum ClaimType {
+    Skill,
+    Experience,
+    ServiceCompletion,
+    Membership,
+    Credential,
+    Other,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub enum EvidenceReference {
+    Action(ActionHash),
+    Entry(EntryHash),
+    External { url: String, sha256: String },
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct Attestation {
+    pub schema_version: u8,
+    pub subject: AgentPubKey,
+    pub claim_type: ClaimType,
+    pub claim: String,
+    pub evidence: Vec<EvidenceReference>,
+    pub expires_at: Option<Timestamp>,
+    pub supersedes: Option<ActionHash>,
+}use hdi::prelude::*;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
