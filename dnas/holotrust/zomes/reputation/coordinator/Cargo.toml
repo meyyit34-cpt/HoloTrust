@@ -15,3 +15,5 @@ reputation_integrity = { path = "../integrity" }
 [dev-dependencies]
 holochain = { version = "=0.7.1", default-features = false, features = ["sweettest", "wasmer-sys-cranelift", "encryption"] }
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+attestation_coordinator = { path = "../../attestation/coordinator" }
+attestation_integrity = { path = "../../attestation/integrity" }
