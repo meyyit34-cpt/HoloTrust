@@ -91,22 +91,33 @@ Tasks:
 - [x] Implement attestation coordinator.
 - [x] Add issuer verification.
 - [x] Define revocation and supersession semantics.
-- [ ] Verify supersession integrity with dedicated tests.
+- [x] Verify supersession integrity with dedicated tests.
 - [x] Add evidence-reference validation.
-- [ ] Add multi-agent integration tests.
+- [x] Add multi-agent integration tests.
 
 Exit criteria:
 
-- Claims have verifiable issuers.
-- Invalid claims are rejected.
-- Historical changes remain auditable.
-- Evidence references can be validated.
+- [x] Claims have verifiable issuers.
+- [x] Invalid claims are rejected.
+- [x] Historical changes remain auditable.
+- [x] Evidence references can be validated.
+- [x] Supersession and revocation authorization are tested.
+- [x] Multi-agent discovery and verification are tested.
 
-Status: In progress.
+Status: Complete.
+
+Completion notes:
+
+- Dedicated supersession and revocation integration tests are implemented.
+- Tests use multiple independent agents and verify third-party discovery.
+- Unauthorized supersession and revocation attempts are rejected.
+- Historical attestations remain discoverable and auditable.
+- Superseded and revoked states are recognized by other agents.
+- Full CI run #197 passed build, test, packaging and conductor smoke-test stages.
 
 ## Phase 4 — Contextual Reputation
 
-Goal: Build evidence-based reputation.
+Goal: Build evidence-based, domain-specific reputation.
 
 Tasks:
 
@@ -118,8 +129,17 @@ Tasks:
 - [ ] Prevent universal-score assumptions.
 - [ ] Add explainability and provenance.
 - [ ] Add multi-agent integration tests.
+- [ ] Integrate contextual reputation APIs into the web interface.
+- [ ] Verify end-to-end reputation workflows.
 
-Status: Not started.
+Current foundations:
+
+- ADR-003 reputation architecture decision documented.
+- Contextual reputation specification drafted.
+- Reputation integrity and coordinator modules introduced.
+- Domain-based review and evidence-validation logic implemented.
+
+Status: In progress.
 
 ## Phase 5 — Trust Graph
 
@@ -166,7 +186,7 @@ Status: Not started.
 
 ## Current Status
 
-Current phase: Phase 3 — Verifiable Attestations.
+Current phase: Phase 4 — Contextual Reputation.
 
 Completed foundations:
 
@@ -180,16 +200,26 @@ Completed foundations:
 - Automated CI pipeline.
 - Rust formatting and Clippy checks verified.
 - Attestation schema and integrity validation.
-- Attestation coordinator and revocation logic.
-- Attestation validation tests included in Fast CI.
+- Attestation coordinator and issuer verification.
+- Attestation revocation and supersession logic.
+- Dedicated multi-agent supersession and revocation tests.
+- Evidence-reference validation.
+- Full CI build, test, packaging and conductor smoke-test verification.
+
+Phase 4 foundations:
+
+- Reputation architecture decision documented.
+- Contextual reputation specification drafted.
+- Separate reputation integrity and coordinator modules introduced.
+- Domain-specific review and evidence-validation logic introduced.
 
 Next milestone:
 
-Complete dedicated attestation supersession and multi-agent integration tests.
+Complete contextual reputation multi-agent integration tests and verify domain-specific reputation workflows.
 
 Following milestone:
 
-Phase 4 — Contextual Reputation.
+Integrate contextual reputation APIs into the web interface and complete Phase 4 end-to-end verification.
 
 ---
 
