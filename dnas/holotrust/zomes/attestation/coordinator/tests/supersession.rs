@@ -67,7 +67,7 @@ async fn supersession_and_revocation_require_authorization_and_preserve_history(
         .await
         .expect("Original attestation did not reach DHT consistency");
 
-    let subject_attestations = conductors[2]
+    let subject_attestations: Vec<holochain::prelude::Record> = conductors[2]
         .sweet_handle()
         .call(
             &subject_zome,
@@ -137,7 +137,7 @@ async fn supersession_and_revocation_require_authorization_and_preserve_history(
         .await
         .expect("Replacement attestation did not reach DHT consistency");
 
-    let updated_subject_attestations = conductors[2]
+    let updated_subject_attestations: Vec<holochain::prelude::Record> = conductors[2]
         .sweet_handle()
         .call(
             &subject_zome,
