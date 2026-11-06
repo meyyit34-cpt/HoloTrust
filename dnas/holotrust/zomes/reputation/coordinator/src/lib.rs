@@ -38,28 +38,42 @@ enum AttestationStatus {
     Superseded,
 }
 
+fn get_attestation_status(action_hash: &ActionHash) -> ExternResult<AttestationStatus> {
+    let response = call(
+        CallTargetCell::Local,
+        "attestation_coordinator",
+        "resolve_attestation_status".into(),
+        None,
+        ResolveAttestationStatusInput {
+            action_hash: action_hash.clone(),
+        },
+    )?;
+
+    match response {
+        ZomeCallResponse::Ok(output) => output
+            .decode()
+            .map_err(|error| wasm_error!(error.to_string())),
+        _ => Err(wasm_error!(WasmErrorInner::Guest(
+            "Attestation status could not be verified".into()
+        ))),
+    }
+}
+
+fn evidence_is_active(evidence: &[ActionHash]) -> ExternResult<bool> {
+    for action_hash in evidence {
+        let status = get_attestation_status(action_hash)?;
+
+        if status != AttestationStatus::Active {
+            return Ok(false);
+        }
+    }
+
+    Ok(true)
+}
+
 fn ensure_active_evidence(evidence: &[ActionHash]) -> ExternResult<()> {
     for action_hash in evidence {
-        let response = call(
-            CallTargetCell::Local,
-            "attestation_coordinator",
-            "resolve_attestation_status".into(),
-            None,
-            ResolveAttestationStatusInput {
-                action_hash: action_hash.clone(),
-            },
-        )?;
-
-        let status: AttestationStatus = match response {
-            ZomeCallResponse::Ok(output) => output
-                .decode()
-                .map_err(|error| wasm_error!(error.to_string()))?,
-            _ => {
-                return Err(wasm_error!(WasmErrorInner::Guest(
-                    "Attestation status could not be verified".into()
-                )));
-            }
-        };
+        let status = get_attestation_status(action_hash)?;
 
         if status != AttestationStatus::Active {
             return Err(wasm_error!(WasmErrorInner::Guest(format!(
@@ -156,8 +170,8 @@ pub fn get_contextual_reviews(input: GetContextualReviewsInput) -> ExternResult<
             continue;
         }
 
-        ensure_active_evidence(&review.evidence_attestations)?;
-
+        // Historical reviews remain visible even if their evidence later
+        // becomes revoked, expired, or superseded.
         records.push(record);
     }
 
@@ -201,6 +215,12 @@ pub fn get_contextual_reputation_summary(
             }
 
             if validate_contextual_review(&review).is_err() {
+                continue;
+            }
+
+            // Only currently active evidence contributes to the score.
+            // The original review itself remains in the historical record.
+            if !evidence_is_active(&review.evidence_attestations)? {
                 continue;
             }
 
