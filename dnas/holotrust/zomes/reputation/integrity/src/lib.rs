@@ -1,3 +1,4 @@
+
 use attestation_integrity::Attestation;
 use hdi::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -179,11 +180,7 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
                 return Ok(evidence_result);
             }
 
-            validate_review_history(
-                action.author(),
-                action.prev_action().cloned(),
-                &review,
-            )
+            validate_review_history(action.author(), action.prev_action().cloned(), &review)
         }
 
         FlatOp::Update(OpUpdate::Entry {
