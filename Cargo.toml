@@ -6,6 +6,7 @@ members = [
     "dnas/holotrust/zomes/attestation/integrity",
     "dnas/holotrust/zomes/attestation/coordinator",
     "dnas/holotrust/zomes/reputation/integrity",
+    "dnas/holotrust/zomes/reputation/coordinator",
 ]
 
 [workspace.package]
