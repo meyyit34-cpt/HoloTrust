@@ -1,28 +1,13 @@
 
+use attestation_coordinator::{CreateAttestationInput, RevokeAttestationInput};
+use attestation_integrity::{ClaimType, EvidenceReference};
 use holochain::prelude::{ActionHash, Record};
 use holochain::sweettest::*;
 use reputation_coordinator::{
-    CreateContextualReviewInput, GetContextualReviewsInput,
-    ContextualReputationSummary,
+    ContextualReputationSummary, CreateContextualReviewInput, GetContextualReviewsInput,
 };
 use reputation_integrity::ReputationDomain;
-use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
-
-#[derive(Serialize, Deserialize)]
-enum ClaimType {
-    Skill,
-}
-
-#[derive(Serialize, Deserialize)]
-struct CreateAttestationInput {
-    subject: holochain::prelude::AgentPubKey,
-    claim_type: ClaimType,
-    claim: String,
-    evidence: Vec<()>,
-    expires_at: Option<holochain::prelude::Timestamp>,
-    supersedes: Option<ActionHash>,
-}
 
 #[tokio::test(flavor = "multi_thread")]
 async fn contextual_reputation_enforces_domains_evidence_and_multi_agent_rules() {
@@ -48,8 +33,6 @@ async fn contextual_reputation_enforces_domains_evidence_and_multi_agent_rules()
 
     conductors.exchange_peer_info().await;
 
-    let reviewer_a = apps[0].agent().clone();
-    let reviewer_b = apps[1].agent().clone();
     let subject = apps[2].agent().clone();
 
     let reputation_a = apps[0].cells()[0].zome("reputation_coordinator");
@@ -68,7 +51,7 @@ async fn contextual_reputation_enforces_domains_evidence_and_multi_agent_rules()
                 subject: subject.clone(),
                 claim_type: ClaimType::Skill,
                 claim: "Verified technical work".into(),
-                evidence: Vec::new(),
+                evidence: Vec::<EvidenceReference>::new(),
                 expires_at: None,
                 supersedes: None,
             },
@@ -93,8 +76,6 @@ async fn contextual_reputation_enforces_domains_evidence_and_multi_agent_rules()
             },
         )
         .await;
-
-    assert_ne!(commerce_review, ActionHash::from_raw_36(vec![0; 36]));
 
     let duplicate_review: Result<ActionHash, _> = conductors[0]
         .sweet_handle()
@@ -166,11 +147,7 @@ async fn contextual_reputation_enforces_domains_evidence_and_multi_agent_rules()
         )
         .await;
 
-    assert_eq!(
-        commerce_reviews.len(),
-        2,
-        "Commerce query must return both independent reviewers"
-    );
+    assert_eq!(commerce_reviews.len(), 2);
 
     let professional_reviews: Vec<Record> = conductors[2]
         .sweet_handle()
@@ -184,11 +161,7 @@ async fn contextual_reputation_enforces_domains_evidence_and_multi_agent_rules()
         )
         .await;
 
-    assert_eq!(
-        professional_reviews.len(),
-        1,
-        "Professional query must return only professional reviews"
-    );
+    assert_eq!(professional_reviews.len(), 1);
 
     let summaries: Vec<ContextualReputationSummary> = conductors[2]
         .sweet_handle()
@@ -235,24 +208,32 @@ async fn contextual_reputation_enforces_domains_evidence_and_multi_agent_rules()
                 subject: subject.clone(),
                 claim_type: ClaimType::Skill,
                 claim: "Evidence to be revoked".into(),
-                evidence: Vec::new(),
+                evidence: Vec::<EvidenceReference>::new(),
                 expires_at: None,
                 supersedes: None,
             },
         )
         .await;
 
+    await_consistency(apps.iter().flat_map(|app| app.cells().iter()))
+        .await
+        .expect("Revocable evidence did not reach DHT consistency");
+
     let _: ActionHash = conductors[1]
         .sweet_handle()
         .call(
             &attestation_b,
             "revoke_attestation",
-            attestation_coordinator::RevokeAttestationInput {
+            RevokeAttestationInput {
                 attestation: revoked_evidence.clone(),
                 reason: Some("Integration test revocation".into()),
             },
         )
         .await;
+
+    await_consistency(apps.iter().flat_map(|app| app.cells().iter()))
+        .await
+        .expect("Evidence revocation did not reach DHT consistency");
 
     let inactive_evidence_review: Result<ActionHash, _> = conductors[0]
         .sweet_handle()
@@ -273,9 +254,4 @@ async fn contextual_reputation_enforces_domains_evidence_and_multi_agent_rules()
         inactive_evidence_review.is_err(),
         "A review referencing revoked evidence must be rejected"
     );
-
-    let _ = reviewer_a;
-    let _ = reviewer_b;
 }
-
-// END OF FILE
