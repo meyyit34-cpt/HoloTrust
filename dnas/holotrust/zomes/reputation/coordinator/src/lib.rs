@@ -1,7 +1,6 @@
 use hdk::prelude::*;
 use reputation_integrity::{
-    validate_contextual_review, ContextualReview, EntryTypes, LinkTypes,
-    ReputationDomain,
+    validate_contextual_review, ContextualReview, EntryTypes, LinkTypes, ReputationDomain,
 };
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -63,12 +62,10 @@ fn ensure_active_evidence(evidence: &[ActionHash]) -> ExternResult<()> {
         };
 
         if status != AttestationStatus::Active {
-            return Err(wasm_error!(WasmErrorInner::Guest(
-                format!(
-                    "Evidence {:?} is not active: {:?}",
-                    action_hash, status
-                )
-            )));
+            return Err(wasm_error!(WasmErrorInner::Guest(format!(
+                "Evidence {:?} is not active: {:?}",
+                action_hash, status
+            ))));
         }
     }
 
@@ -76,9 +73,7 @@ fn ensure_active_evidence(evidence: &[ActionHash]) -> ExternResult<()> {
 }
 
 #[hdk_extern]
-pub fn create_contextual_review(
-    input: CreateContextualReviewInput,
-) -> ExternResult<ActionHash> {
+pub fn create_contextual_review(input: CreateContextualReviewInput) -> ExternResult<ActionHash> {
     let author = agent_info()?.agent_initial_pubkey;
 
     if author == input.subject_agent {
@@ -114,9 +109,7 @@ pub fn create_contextual_review(
 }
 
 #[hdk_extern]
-pub fn get_contextual_reviews(
-    input: GetContextualReviewsInput,
-) -> ExternResult<Vec<Record>> {
+pub fn get_contextual_reviews(input: GetContextualReviewsInput) -> ExternResult<Vec<Record>> {
     let links = get_links(
         LinkQuery::try_new(
             input.subject_agent.clone(),
