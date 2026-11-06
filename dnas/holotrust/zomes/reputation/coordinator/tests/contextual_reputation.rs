@@ -10,8 +10,7 @@ use std::path::PathBuf;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn contextual_reputation_enforces_domains_evidence_and_multi_agent_rules() {
-    let dna_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../../workdir/holotrust.dna");
+    let dna_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../workdir/holotrust.dna");
 
     assert!(
         dna_path.exists(),
