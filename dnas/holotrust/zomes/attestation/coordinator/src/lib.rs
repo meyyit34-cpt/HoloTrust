@@ -329,9 +329,7 @@ pub fn resolve_attestation_status(input: GetAttestationInput) -> ExternResult<At
 }
 
 #[hdk_extern]
-pub fn verify_attestation(
-    input: VerifyAttestationInput,
-) -> ExternResult<AttestationVerification> {
+pub fn verify_attestation(input: VerifyAttestationInput) -> ExternResult<AttestationVerification> {
     let Some(record) = get(input.action_hash.clone(), GetOptions::default())? else {
         return Err(wasm_error!(WasmErrorInner::Guest(
             "Attestation not found".into(),
