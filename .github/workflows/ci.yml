@@ -67,6 +67,8 @@ jobs:
           test -s target/wasm32-unknown-unknown/release/identity_coordinator.wasm
           test -s target/wasm32-unknown-unknown/release/attestation_integrity.wasm
           test -s target/wasm32-unknown-unknown/release/attestation_coordinator.wasm
+          test -s target/wasm32-unknown-unknown/release/reputation_integrity.wasm
+          test -s target/wasm32-unknown-unknown/release/reputation_coordinator.wasm
 
       - name: Install Nix with Holochain cache
         id: nix
