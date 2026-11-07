@@ -3,17 +3,17 @@ import { callReputation } from "./holochain.js";
 import {
   decodeHashFromBase64,
   encodeHashToBase64
-} from "https://esm.sh/@holochain/client@0.21.0";
+} from "https://esm.sh/@holochain/client@0.21.1";
 
 import { decode } from "https://esm.sh/@msgpack/msgpack@3.1.2";
 
 const DOMAINS = {
-  Commerce: "Ticaret",
-  Professional: "Profesyonellik",
-  Hospitality: "Misafirperverlik",
-  Technical: "Teknik Yetkinlik",
-  Community: "Topluluk",
-  Reliability: "Güvenilirlik"
+  commerce: "Ticaret",
+  professional: "Profesyonellik",
+  hospitality: "Misafirperverlik",
+  technical: "Teknik Yetkinlik",
+  community: "Topluluk",
+  reliability: "Güvenilirlik"
 };
 
 const style = document.createElement("style");
@@ -162,12 +162,12 @@ panel.innerHTML = `
 
   <label for="repDomain">İtibar alanı</label>
   <select id="repDomain">
-    <option value="Commerce">Ticaret</option>
-    <option value="Professional">Profesyonellik</option>
-    <option value="Hospitality">Misafirperverlik</option>
-    <option value="Technical">Teknik Yetkinlik</option>
-    <option value="Community">Topluluk</option>
-    <option value="Reliability">Güvenilirlik</option>
+    <option value="commerce">Ticaret</option>
+    <option value="professional">Profesyonellik</option>
+    <option value="hospitality">Misafirperverlik</option>
+    <option value="technical">Teknik Yetkinlik</option>
+    <option value="community">Topluluk</option>
+    <option value="reliability">Güvenilirlik</option>
   </select>
 
   <label for="repRating">Puan</label>
