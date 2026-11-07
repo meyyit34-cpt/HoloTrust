@@ -8,11 +8,8 @@ use reputation_coordinator::{
 use reputation_integrity::ReputationDomain;
 use std::path::PathBuf;
 use support::{
-    AttestationStatus, ClaimType, CreateAttestationInput, EvidenceReference,
-    GetAttestationInput,
+    AttestationStatus, ClaimType, CreateAttestationInput, EvidenceReference, GetAttestationInput,
 };
-use reputation_integrity::ReputationDomain;
-use std::path::PathBuf;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn superseded_evidence_preserves_history_but_not_current_reputation() {
