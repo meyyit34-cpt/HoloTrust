@@ -130,24 +130,27 @@ Goal: Establish explicit, directional, context-aware relationships between agent
 
 Design and architecture
 
-* [x]	Create initial Trust Graph specification HT-TRUST-001.
-* [ ]	Review and approve Trust Graph specification.
-* [ ]	Document architectural decision ADR-004.
-* [ ]	Confirm module boundaries and security rules.
-* [ ]	Finalize relationship and removal data models.
+* [x]	Create Trust Graph specification HT-TRUST-001.
+* [x]	Draft architectural decision ADR-004.
+* [x]	Document relationship and removal data models.
+* [x]	Document module boundaries and security constraints.
+* [ ]	Obtain explicit approval of HT-TRUST-001.
+* [ ]	Accept ADR-004.
 
 Integrity and coordinator implementation
 
+* [ ]	Inspect existing identity, attestation, and reputation zome patterns.
+* [ ]	Inspect integration-test infrastructure and multi-agent test support.
 * [ ]	Create trust_integrity zome.
 * [ ]	Create trust coordinator zome.
 * [ ]	Register both zomes in Cargo workspace.
 * [ ]	Register both zomes in DNA manifest.
 * [ ]	Implement directional relationship creation.
-* [ ]	Implement context validation.
+* [ ]	Implement stable context validation.
 * [ ]	Reject self-relationships.
 * [ ]	Reject duplicate active relationships.
 * [ ]	Implement immutable relationship removal records.
-* [ ]	Enforce removal authorization.
+* [ ]	Enforce removal authorization in integrity validation.
 * [ ]	Implement relationship discovery and queries.
 * [ ]	Preserve historical relationship records.
 
@@ -163,19 +166,50 @@ Testing and integration
 * [ ]	Verify Fast CI.
 * [ ]	Verify Full CI and real-conductor behavior.
 
-Status: Design in progress.
+Status: Design documented — approval pending.
+
+Specification:
+docs/TRUST-SPECIFICATION.md
+
+Specification status: Proposed for Approval.
+
+Architecture decision:
+docs/decisions/ADR-004-TRUST-GRAPH-ARCHITECTURE.md
+
+ADR status: Proposed.
+
+Project continuity:
+docs/PROJECT-CONTINUITY.md
 
 Important architectural constraints:
 
 * Relationships are directional.
 * Reciprocal trust is never automatic.
 * Trust is context-specific.
+* Supported contexts: general, commerce, professional, hospitality, technical, community, reliability.
 * Only the original author can remove a relationship.
+* Removal creates a separate immutable historical record.
 * Historical records remain auditable.
-* No universal trust score.
+* No universal trust score or ranking.
 * No automatic transitive trust calculation.
 * No sensitive personal information in public DHT records.
 * Trust Graph does not modify Attestation or Reputation records.
+* Evidence fields are excluded from Trust Graph version 0.1.
+
+Phase 6 — Economic Integration
+
+Goal: Integrate decentralized economic coordination into the HoloTrust architecture.
+
+Potential integrations:
+
+* hREA
+* Unyt
+* Holochain economic infrastructure
+* HoloFuel-compatible coordination models
+
+Status: Not started.
+
+All integrations remain in the project scope. Compatibility and implementation details must be verified against the actual upstream projects and APIs before integration.
 
 Phase 6 — Economic Integration
 
