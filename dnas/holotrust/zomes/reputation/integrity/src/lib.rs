@@ -1,14 +1,15 @@
 use hdi::prelude::*;
 use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub enum ClaimType {
-    Skill,
-    Experience,
-    ServiceCompletion,
-    Membership,
-    Credential,
-    Other,
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ReputationDomain {
+    Commerce,
+    Professional,
+    Hospitality,
+    Technical,
+    Community,
+    Reliability,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
