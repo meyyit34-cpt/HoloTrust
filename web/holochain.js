@@ -1,4 +1,4 @@
-import { AppWebsocket } from "https://esm.sh/@holochain/client";
+import { AppWebsocket } from "https://esm.sh/@holochain/client@0.21.1";
 import { decode, encode } from "https://esm.sh/@msgpack/msgpack@3.1.2";
 
 let connectionPromise = null;
