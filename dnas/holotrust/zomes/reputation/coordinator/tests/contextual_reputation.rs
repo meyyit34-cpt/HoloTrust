@@ -10,8 +10,6 @@ use std::path::PathBuf;
 use support::{
     ClaimType, CreateAttestationInput, EvidenceReference, RevokeAttestationInput,
 };
-use reputation_integrity::ReputationDomain;
-use std::path::PathBuf;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn contextual_reputation_enforces_domains_evidence_and_multi_agent_rules() {
