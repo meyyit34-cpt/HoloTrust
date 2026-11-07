@@ -80,6 +80,16 @@ async function main() {
     "reputation interface references all three contextual APIs"
   );
 
+  check(
+    reputationScriptText.includes('value="commerce"') &&
+      reputationScriptText.includes('value="professional"') &&
+      reputationScriptText.includes('value="hospitality"') &&
+      reputationScriptText.includes('value="technical"') &&
+      reputationScriptText.includes('value="community"') &&
+      reputationScriptText.includes('value="reliability"'),
+    "reputation interface uses all six stable lowercase domain identifiers"
+  );
+
   const mine = await call(
     "identity_coordinator",
     "get_my_profile",
@@ -206,12 +216,12 @@ async function main() {
   );
 
   const expectedDomains = [
-    "Commerce",
-    "Professional",
-    "Hospitality",
-    "Technical",
-    "Community",
-    "Reliability"
+    "commerce",
+    "professional",
+    "hospitality",
+    "technical",
+    "community",
+    "reliability"
   ];
 
   const summaries = contextualSummary.body.result;
@@ -241,7 +251,7 @@ async function main() {
     "create_contextual_review",
     {
       subject_agent: agentKey,
-      domain: "Commerce",
+      domain: "commerce",
       rating: 5,
       comment: null,
       evidence_attestations: []
