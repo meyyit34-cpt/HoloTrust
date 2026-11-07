@@ -3,7 +3,8 @@ mod support;
 use holochain::prelude::{ActionHash, Record};
 use holochain::sweettest::*;
 use reputation_coordinator::{
-    ContextualReputationSummary, CreateContextualReviewInput, GetContextualReviewsInput,
+    ContextualReputationSummary, ContextualReviewProvenance, CreateContextualReviewInput,
+    EvidenceStatus, GetContextualReviewsInput,
 };
 use reputation_integrity::ReputationDomain;
 use std::path::PathBuf;
@@ -159,6 +160,40 @@ async fn superseded_evidence_preserves_history_but_not_current_reputation() {
         historical_reviews[0].action_address(),
         &original_review,
         "The original review record must remain unchanged"
+    );
+
+    let detailed_history: Vec<ContextualReviewProvenance> = conductors[2]
+        .sweet_handle()
+        .call(
+            &reputation_subject,
+            "get_contextual_reviews_with_provenance",
+            GetContextualReviewsInput {
+                subject_agent: subject.clone(),
+                domain: Some(ReputationDomain::Commerce),
+            },
+        )
+        .await;
+
+    assert_eq!(detailed_history.len(), 1);
+    assert_eq!(detailed_history[0].action_hash, original_review);
+    assert_eq!(detailed_history[0].evidence.len(), 1);
+
+    assert_eq!(
+        detailed_history[0].evidence[0].status,
+        EvidenceStatus::Superseded,
+        "The provenance API must expose the current status of historical evidence"
+    );
+
+    let original_attestation = detailed_history[0].evidence[0]
+        .attestation
+        .as_ref()
+        .expect("Historical attestation details must remain inspectable");
+
+    assert_eq!(original_attestation.claim, "Original verified skill");
+
+    assert_eq!(
+        detailed_history[0].evidence[0].issuer,
+        Some(apps[0].agent().clone())
     );
 
     let summaries: Vec<ContextualReputationSummary> = conductors[2]
