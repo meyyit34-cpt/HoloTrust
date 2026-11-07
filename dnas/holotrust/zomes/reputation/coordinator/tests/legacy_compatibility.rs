@@ -29,8 +29,7 @@ struct LegacySummary {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn legacy_reviews_remain_readable_and_excluded_from_contextual_reputation() {
-    let dna_path =
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../workdir/holotrust.dna");
+    let dna_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../workdir/holotrust.dna");
 
     assert!(
         dna_path.exists(),
@@ -62,7 +61,7 @@ async fn legacy_reviews_remain_readable_and_excluded_from_contextual_reputation(
     let reputation_reviewer = apps[0].cells()[0].zome("reputation_coordinator");
     let reputation_subject = apps[1].cells()[0].zome("reputation_coordinator");
 
-    // Publish a legacy schema-v1 review through Identity.
+    // Create a legacy schema-v1 review through the existing Identity API.
     let legacy_review: ActionHash = conductors[0]
         .sweet_handle()
         .call(
@@ -76,7 +75,7 @@ async fn legacy_reviews_remain_readable_and_excluded_from_contextual_reputation(
         )
         .await;
 
-    // Create valid evidence for the contextual review.
+    // Create valid attestation evidence for the contextual review.
     let evidence: ActionHash = conductors[0]
         .sweet_handle()
         .call(
@@ -112,7 +111,7 @@ async fn legacy_reviews_remain_readable_and_excluded_from_contextual_reputation(
         .await
         .expect("Legacy and contextual records did not reach DHT consistency");
 
-    // Legacy review must remain readable through the old Identity API.
+    // The legacy review must remain readable through the original Identity API.
     let legacy_reviews: Vec<holochain::prelude::Record> = conductors[1]
         .sweet_handle()
         .call(
@@ -150,7 +149,7 @@ async fn legacy_reviews_remain_readable_and_excluded_from_contextual_reputation(
     assert_eq!(legacy_summary.review_count, 1);
     assert_eq!(legacy_summary.average_rating, 4.0);
 
-    // Contextual reputation must contain only contextual reviews.
+    // Contextual queries must return only contextual review records.
     let contextual_reviews: Vec<holochain::prelude::Record> = conductors[1]
         .sweet_handle()
         .call(
@@ -181,7 +180,7 @@ async fn legacy_reviews_remain_readable_and_excluded_from_contextual_reputation(
             &reputation_subject,
             "get_contextual_reputation_summary",
             GetContextualReviewsInput {
-                subject_agent: subject,
+                subject_agent: subject.clone(),
                 domain: None,
             },
         )
@@ -207,9 +206,7 @@ async fn legacy_reviews_remain_readable_and_excluded_from_contextual_reputation(
 
     assert_eq!(professional.average_rating, 0.0);
 
-    // The reviewer identity is deliberately used in both systems;
-    // the two records must still remain independently addressable.
+    // The two systems must keep their records independently addressable.
     assert_ne!(legacy_review, contextual_review);
-
     assert_ne!(reviewer, subject);
 }
