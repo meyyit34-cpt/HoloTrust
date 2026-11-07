@@ -1,6 +1,7 @@
 use hdk::prelude::*;
 use reputation_integrity::{
-    validate_contextual_review, ContextualReview, EntryTypes, LinkTypes, ReputationDomain,
+    validate_contextual_review, Attestation, ContextualReview, EntryTypes, LinkTypes,
+    ReputationDomain,
 };
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -31,14 +32,40 @@ struct ResolveAttestationStatusInput {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
-enum AttestationStatus {
+pub enum EvidenceStatus {
     Active,
     Revoked,
     Expired,
     Superseded,
+    Missing,
+    Invalid,
+    Unavailable,
 }
 
-fn get_attestation_status(action_hash: &ActionHash) -> ExternResult<AttestationStatus> {
+#[derive(Serialize, Deserialize)]
+pub struct EvidenceProvenance {
+    pub action_hash: ActionHash,
+    pub status: EvidenceStatus,
+    pub issuer: Option<AgentPubKey>,
+    pub issued_at: Option<Timestamp>,
+    pub attestation: Option<Attestation>,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct ContextualReviewProvenance {
+    pub action_hash: ActionHash,
+    pub author: AgentPubKey,
+    pub timestamp: Timestamp,
+    pub review: ContextualReview,
+    pub evidence: Vec<EvidenceProvenance>,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+struct GetAttestationInput {
+    action_hash: ActionHash,
+}
+
+fn get_attestation_status(action_hash: &ActionHash) -> ExternResult<EvidenceStatus> {
     let response = call(
         CallTargetCell::Local,
         "attestation_coordinator",
@@ -59,11 +86,85 @@ fn get_attestation_status(action_hash: &ActionHash) -> ExternResult<AttestationS
     }
 }
 
+fn get_attestation_record(action_hash: &ActionHash) -> ExternResult<Option<Record>> {
+    let response = call(
+        CallTargetCell::Local,
+        "attestation_coordinator",
+        "get_attestation".into(),
+        None,
+        GetAttestationInput {
+            action_hash: action_hash.clone(),
+        },
+    )?;
+
+    match response {
+        ZomeCallResponse::Ok(output) => output
+            .decode()
+            .map_err(|error| wasm_error!(error.to_string())),
+        _ => Err(wasm_error!(WasmErrorInner::Guest(
+            "Attestation provenance could not be retrieved".into()
+        ))),
+    }
+}
+
+fn get_evidence_provenance(action_hash: &ActionHash) -> ExternResult<EvidenceProvenance> {
+    let record = match get_attestation_record(action_hash) {
+        Ok(Some(record)) => record,
+        Ok(None) => {
+            let raw_record = get(action_hash.clone(), GetOptions::default())?;
+            return Ok(EvidenceProvenance {
+                action_hash: action_hash.clone(),
+                status: if raw_record.is_some() {
+                    EvidenceStatus::Invalid
+                } else {
+                    EvidenceStatus::Missing
+                },
+                issuer: None,
+                issued_at: None,
+                attestation: None,
+            });
+        }
+        Err(_) => {
+            return Ok(EvidenceProvenance {
+                action_hash: action_hash.clone(),
+                status: EvidenceStatus::Unavailable,
+                issuer: None,
+                issued_at: None,
+                attestation: None,
+            });
+        }
+    };
+
+    let attestation = match record.entry().to_app_option::<Attestation>() {
+        Ok(Some(attestation)) => attestation,
+        _ => {
+            return Ok(EvidenceProvenance {
+                action_hash: action_hash.clone(),
+                status: EvidenceStatus::Invalid,
+                issuer: Some(record.action().author().clone()),
+                issued_at: Some(record.action().timestamp()),
+                attestation: None,
+            });
+        }
+    };
+
+    let status = get_attestation_status(action_hash)
+        .unwrap_or(EvidenceStatus::Unavailable);
+
+    Ok(EvidenceProvenance {
+        action_hash: action_hash.clone(),
+        status,
+        issuer: Some(record.action().author().clone()),
+        issued_at: Some(record.action().timestamp()),
+        attestation: Some(attestation),
+    })
+}
+
 fn evidence_is_active(evidence: &[ActionHash]) -> ExternResult<bool> {
     for action_hash in evidence {
         let status = get_attestation_status(action_hash)?;
 
-        if status != AttestationStatus::Active {
+        if status != EvidenceStatus::Active {
             return Ok(false);
         }
     }
@@ -75,7 +176,7 @@ fn ensure_active_evidence(evidence: &[ActionHash]) -> ExternResult<()> {
     for action_hash in evidence {
         let status = get_attestation_status(action_hash)?;
 
-        if status != AttestationStatus::Active {
+        if status != EvidenceStatus::Active {
             return Err(wasm_error!(WasmErrorInner::Guest(format!(
                 "Evidence {:?} is not active: {:?}",
                 action_hash, status
@@ -178,6 +279,42 @@ pub fn get_contextual_reviews(input: GetContextualReviewsInput) -> ExternResult<
     records.sort_by_key(|record| record.action().timestamp());
 
     Ok(records)
+}
+
+#[hdk_extern]
+pub fn get_contextual_reviews_with_provenance(
+    input: GetContextualReviewsInput,
+) -> ExternResult<Vec<ContextualReviewProvenance>> {
+    let records = get_contextual_reviews(input)?;
+    let mut results = Vec::with_capacity(records.len());
+
+    for record in records {
+        let review = record
+            .entry()
+            .to_app_option::<ContextualReview>()
+            .map_err(|error| wasm_error!(WasmErrorInner::Guest(error.to_string())))?
+            .ok_or_else(|| {
+                wasm_error!(WasmErrorInner::Guest(
+                    "Contextual review record could not be decoded".into()
+                ))
+            })?;
+
+        let mut evidence = Vec::with_capacity(review.evidence_attestations.len());
+
+        for action_hash in &review.evidence_attestations {
+            evidence.push(get_evidence_provenance(action_hash)?);
+        }
+
+        results.push(ContextualReviewProvenance {
+            action_hash: record.action_address().clone(),
+            author: record.action().author().clone(),
+            timestamp: record.action().timestamp(),
+            review,
+            evidence,
+        });
+    }
+
+    Ok(results)
 }
 
 #[hdk_extern]
