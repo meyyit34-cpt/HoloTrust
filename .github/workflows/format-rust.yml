@@ -1,0 +1,39 @@
+name: Format Rust Files
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  format:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Format Trust files
+        run: |
+          rustfmt --edition 2021 dnas/holotrust/zomes/trust/coordinator/src/lib.rs
+          rustfmt --edition 2021 dnas/holotrust/zomes/trust/coordinator/tests/trust_graph.rs
+          rustfmt --edition 2021 dnas/holotrust/zomes/trust/integrity/src/lib.rs
+
+      - name: Commit formatted files
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add dnas/holotrust/zomes/trust/
+          if git diff --cached --quiet; then
+            echo "No formatting changes required."
+          else
+            git commit -m "style: format trust graph Rust files"
+            git push origin HEAD:main
+          fi
