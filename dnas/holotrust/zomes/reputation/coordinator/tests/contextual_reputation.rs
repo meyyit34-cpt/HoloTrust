@@ -9,7 +9,7 @@ use reputation_integrity::ReputationDomain;
 use std::path::PathBuf;
 use support::{
     ClaimType, CreateAttestationInput, EvidenceReference, RevokeAttestationInput,
-};};
+};
 use reputation_integrity::ReputationDomain;
 use std::path::PathBuf;
 
