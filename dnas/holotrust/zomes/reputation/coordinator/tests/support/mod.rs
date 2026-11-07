@@ -15,10 +15,7 @@ pub enum ClaimType {
 pub enum EvidenceReference {
     Action(ActionHash),
     Entry(holochain::prelude::EntryHash),
-    External {
-        url: String,
-        sha256: String,
-    },
+    External { url: String, sha256: String },
 }
 
 #[derive(Serialize, Deserialize, Debug)]
