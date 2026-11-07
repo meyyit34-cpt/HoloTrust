@@ -1,7 +1,5 @@
 use hdk::prelude::*;
-use trust_integrity::{
-    EntryTypes, LinkTypes, TrustContext, TrustRelationship, TrustRemoval,
-};
+use trust_integrity::{EntryTypes, LinkTypes, TrustContext, TrustRelationship, TrustRemoval};
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct CreateTrustRelationshipInput {
@@ -109,9 +107,7 @@ fn get_removal_record(
     Ok(None)
 }
 
-fn relationship_history(
-    relationship: Record,
-) -> ExternResult<TrustRelationshipHistory> {
+fn relationship_history(relationship: Record) -> ExternResult<TrustRelationshipHistory> {
     let author = relationship.action().author().clone();
     let relationship_action = relationship.action_address().clone();
 
@@ -140,8 +136,7 @@ pub fn create_trust_relationship(
     trust_integrity::validate_trust_relationship(&relationship, &author)
         .map_err(|reason| wasm_error!(WasmErrorInner::Guest(reason)))?;
 
-    let relationship_action =
-        create_entry(EntryTypes::TrustRelationship(relationship))?;
+    let relationship_action = create_entry(EntryTypes::TrustRelationship(relationship))?;
 
     create_link(
         author,
@@ -322,11 +317,9 @@ pub fn get_trust_relationships_for_subject(
 pub fn get_trust_relationships_by_context(
     input: GetTrustRelationshipsByContextInput,
 ) -> ExternResult<Vec<TrustRelationshipHistory>> {
-    let records = get_trust_relationships_by_author(
-        GetTrustRelationshipsByAuthorInput {
-            author: input.author,
-        },
-    )?;
+    let records = get_trust_relationships_by_author(GetTrustRelationshipsByAuthorInput {
+        author: input.author,
+    })?;
 
     let mut filtered = Vec::new();
 
@@ -347,10 +340,7 @@ pub fn get_trust_relationships_by_context(
 pub fn get_trust_relationship_history(
     input: GetTrustRelationshipHistoryInput,
 ) -> ExternResult<Option<TrustRelationshipHistory>> {
-    let Some(record) = get(
-        input.relationship_action,
-        GetOptions::default(),
-    )? else {
+    let Some(record) = get(input.relationship_action, GetOptions::default())? else {
         return Ok(None);
     };
 
@@ -393,9 +383,7 @@ pub fn are_trust_relationships_mutual(
             continue;
         };
 
-        if relationship.subject_agent == input.agent_b
-            && relationship.context == input.context
-        {
+        if relationship.subject_agent == input.agent_b && relationship.context == input.context {
             a_trusts_b = true;
             break;
         }
@@ -414,9 +402,7 @@ pub fn are_trust_relationships_mutual(
             continue;
         };
 
-        if relationship.subject_agent == input.agent_a
-            && relationship.context == input.context
-        {
+        if relationship.subject_agent == input.agent_a && relationship.context == input.context {
             b_trusts_a = true;
             break;
         }
