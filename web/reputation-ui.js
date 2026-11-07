@@ -61,7 +61,7 @@ function setBusy(value) {
   const submitButton = $("repSubmitButton");
 
   if (loadButton) loadButton.disabled = value;
-  if (connectButton) connectButton.disabled = value;
+  if (connectButton) connectButton.disabled = value || !!connection;
   if (submitButton) submitButton.disabled = value;
 }
 
@@ -71,6 +71,7 @@ async function ensureConnection() {
   }
 
   if (!(connection.agentPubKey instanceof Uint8Array)) {
+    connection = null;
     throw new Error("Agent Public Key alınamadı.");
   }
 
@@ -130,6 +131,10 @@ async function connectReputation() {
 function renderSummary(summaries) {
   const container = $("repSummary");
   container.replaceChildren();
+
+  if (!Array.isArray(summaries)) {
+    throw new Error("İtibar özeti beklenen formatta değil.");
+  }
 
   for (const domain of Object.keys(DOMAINS)) {
     const summary = summaries.find(item => item.domain === domain);
@@ -249,7 +254,8 @@ function renderReviews(records) {
       item,
       "strong",
       "",
-      DOMAINS[review.domain] + " · ★ " + review.rating + " / 5"
+      (DOMAINS[review.domain] || review.domain) +
+        " · ★ " + review.rating + " / 5"
     );
 
     if (review.comment) {
@@ -302,7 +308,10 @@ async function loadReputation() {
   const subjectValue = $("repSubjectAgent").value.trim();
 
   if (!subjectValue) {
-    setMessage("Önce incelenecek ajanın Agent Public Key bilgisini gir.", true);
+    setMessage(
+      "Önce incelenecek ajanın Agent Public Key bilgisini gir.",
+      true
+    );
     return;
   }
 
@@ -331,7 +340,11 @@ async function loadReputation() {
     renderSummary(summaries);
     renderReviews(records);
 
-    setConnectionStatus("İtibar verileri Holochain ağından yüklendi.", true);
+    setConnectionStatus(
+      "İtibar verileri Holochain ağından yüklendi.",
+      true
+    );
+
     setMessage("İtibar bilgileri başarıyla yüklendi.");
   } catch (error) {
     $("repSummary").textContent = "İtibar özeti alınamadı.";
@@ -350,13 +363,17 @@ function parseEvidenceHashes(value) {
     .filter(Boolean);
 
   if (values.length < 1 || values.length > 5) {
-    throw new Error("En az 1, en fazla 5 kanıt ActionHash girmelisin.");
+    throw new Error(
+      "En az 1, en fazla 5 kanıt ActionHash girmelisin."
+    );
   }
 
   const unique = new Set(values);
 
   if (unique.size !== values.length) {
-    throw new Error("Aynı kanıt ActionHash değerini birden fazla giremezsin.");
+    throw new Error(
+      "Aynı kanıt ActionHash değerini birden fazla giremezsin."
+    );
   }
 
   return values.map(value => decodeHashFromBase64(value));
@@ -369,19 +386,24 @@ async function createReview(event) {
 
   setBusy(true);
 
+  let shouldRefresh = false;
+
   try {
     const activeConnection = await ensureConnection();
 
     const subjectValue = $("repSubjectAgent").value.trim();
 
     if (!subjectValue) {
-      throw new Error("İncelenecek ajanın Agent Public Key bilgisi gerekli.");
+      throw new Error(
+        "İncelenecek ajanın Agent Public Key bilgisi gerekli."
+      );
     }
 
     const subjectAgent = decodeHashFromBase64(subjectValue);
     const ownAgent = encodeHashToBase64(activeConnection.agentPubKey);
+    const normalizedSubject = encodeHashToBase64(subjectAgent);
 
-    if (ownAgent === subjectValue) {
+    if (ownAgent === normalizedSubject) {
       throw new Error("Kendi ajanına değerlendirme gönderemezsin.");
     }
 
@@ -399,13 +421,16 @@ async function createReview(event) {
       throw new Error("Açıklama en fazla 500 karakter olabilir.");
     }
 
-    const result = await callReputation("create_contextual_review", {
-      subject_agent: subjectAgent,
-      domain: $("repDomain").value,
-      rating,
-      comment: comment || null,
-      evidence_attestations: evidenceAttestations
-    });
+    const result = await callReputation(
+      "create_contextual_review",
+      {
+        subject_agent: subjectAgent,
+        domain: $("repDomain").value,
+        rating,
+        comment: comment || null,
+        evidence_attestations: evidenceAttestations
+      }
+    );
 
     $("repComment").value = "";
     $("repEvidence").value = "";
@@ -415,17 +440,34 @@ async function createReview(event) {
       encodeHash(result)
     );
 
-    await loadReputation();
+    shouldRefresh = true;
   } catch (error) {
     setMessage(error?.message || String(error), true);
   } finally {
     setBusy(false);
   }
+
+  // İşlem kilidi kaldırıldıktan sonra yenileme başlar.
+  // Böylece loadReputation kendi busy kontrolüne takılmaz.
+  if (shouldRefresh) {
+    await loadReputation();
+  }
 }
 
-$("repConnectButton")?.addEventListener("click", connectReputation);
-$("repLoadButton")?.addEventListener("click", loadReputation);
-$("repCreateForm")?.addEventListener("submit", createReview);
+$("repConnectButton")?.addEventListener(
+  "click",
+  connectReputation
+);
+
+$("repLoadButton")?.addEventListener(
+  "click",
+  loadReputation
+);
+
+$("repCreateForm")?.addEventListener(
+  "submit",
+  createReview
+);
 
 $("repDomain")?.addEventListener("change", () => {
   if ($("repSubjectAgent").value.trim()) {
