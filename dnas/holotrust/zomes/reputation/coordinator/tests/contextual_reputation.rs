@@ -1,10 +1,15 @@
-use attestation_coordinator::{CreateAttestationInput, RevokeAttestationInput};
-use attestation_integrity::{ClaimType, EvidenceReference};
+mod support;
+
 use holochain::prelude::{ActionHash, Record};
 use holochain::sweettest::*;
 use reputation_coordinator::{
     ContextualReputationSummary, CreateContextualReviewInput, GetContextualReviewsInput,
 };
+use reputation_integrity::ReputationDomain;
+use std::path::PathBuf;
+use support::{
+    ClaimType, CreateAttestationInput, EvidenceReference, RevokeAttestationInput,
+};};
 use reputation_integrity::ReputationDomain;
 use std::path::PathBuf;
 
