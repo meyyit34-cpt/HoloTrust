@@ -7,9 +7,13 @@ use reputation_coordinator::{
 };
 use reputation_integrity::ReputationDomain;
 use std::path::PathBuf;
-use support::{
-    ClaimType, CreateAttestationInput, EvidenceReference, RevokeAttestationInput,
-};
+use support::{ClaimType, CreateAttestationInput, EvidenceReference};
+
+#[derive(serde::Serialize, serde::Deserialize, Debug)]
+struct RevokeAttestationInput {
+    pub attestation: ActionHash,
+    pub reason: Option<String>,
+}
 
 #[tokio::test(flavor = "multi_thread")]
 async fn contextual_reputation_enforces_domains_evidence_and_multi_agent_rules() {
