@@ -1,3 +1,4 @@
+
 name: HoloTrust Fast CI
 
 on:
@@ -112,8 +113,14 @@ jobs:
       - name: Check workspace compilation
         run: cargo check --workspace
 
-      - name: Run independent profile validation tests
+      - name: Run identity integrity validation tests
         run: cargo test -p identity_integrity --test profile_validation
 
       - name: Run attestation integrity validation tests
         run: cargo test -p attestation_integrity --test attestation_validation
+
+      - name: Run Trust integrity unit tests
+        run: cargo test -p trust_integrity --lib
+
+      - name: Compile Trust Graph integration tests
+        run: cargo test -p trust_coordinator --test trust_graph --no-run
