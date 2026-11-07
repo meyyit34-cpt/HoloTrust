@@ -17,6 +17,10 @@ integrity:
       hash: null
       path: ../../../target/wasm32-unknown-unknown/release/reputation_integrity.wasm
 
+    - name: trust_integrity
+      hash: null
+      path: ../../../target/wasm32-unknown-unknown/release/trust_integrity.wasm
+
 coordinator:
   zomes:
     - name: identity_coordinator
@@ -36,3 +40,9 @@ coordinator:
       path: ../../../target/wasm32-unknown-unknown/release/reputation_coordinator.wasm
       dependencies:
         - name: reputation_integrity
+
+    - name: trust_coordinator
+      hash: null
+      path: ../../../target/wasm32-unknown-unknown/release/trust_coordinator.wasm
+      dependencies:
+        - name: trust_integrity
