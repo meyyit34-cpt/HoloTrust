@@ -17,8 +17,10 @@ jobs:
           ref: main
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
+      - name: Install Rust formatter
+        uses: dtolnay/rust-toolchain@1.99.1
+        with:
+          components: rustfmt
 
       - name: Format Trust files
         run: |
