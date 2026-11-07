@@ -42,7 +42,7 @@ pub enum EvidenceStatus {
     Unavailable,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct EvidenceProvenance {
     pub action_hash: ActionHash,
     pub status: EvidenceStatus,
@@ -51,7 +51,7 @@ pub struct EvidenceProvenance {
     pub attestation: Option<Attestation>,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct ContextualReviewProvenance {
     pub action_hash: ActionHash,
     pub author: AgentPubKey,
@@ -148,8 +148,7 @@ fn get_evidence_provenance(action_hash: &ActionHash) -> ExternResult<EvidencePro
         }
     };
 
-    let status = get_attestation_status(action_hash)
-        .unwrap_or(EvidenceStatus::Unavailable);
+    let status = get_attestation_status(action_hash).unwrap_or(EvidenceStatus::Unavailable);
 
     Ok(EvidenceProvenance {
         action_hash: action_hash.clone(),
