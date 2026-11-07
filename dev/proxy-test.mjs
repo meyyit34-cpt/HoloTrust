@@ -65,7 +65,24 @@ async function main() {
     "index.html loads the contextual reputation interface"
   );
 
+  const expectedDomains = [
+    "commerce",
+    "professional",
+    "hospitality",
+    "technical",
+    "community",
+    "reliability"
+  ];
+
+  for (const domain of expectedDomains) {
+    check(
+      pageText.includes(`value="${domain}"`),
+      "index.html contains the " + domain + " domain option"
+    );
+  }
+
   const reputationScript = await fetch(BASE + "/reputation-ui.js");
+
   check(
     reputationScript.ok,
     "contextual reputation JavaScript is served"
@@ -79,16 +96,6 @@ async function main() {
       reputationScriptText.includes("get_contextual_reviews_with_provenance") &&
       reputationScriptText.includes("get_contextual_reputation_summary"),
     "reputation interface references all four contextual APIs"
-  );
-
-  check(
-    reputationScriptText.includes('value="commerce"') &&
-      reputationScriptText.includes('value="professional"') &&
-      reputationScriptText.includes('value="hospitality"') &&
-      reputationScriptText.includes('value="technical"') &&
-      reputationScriptText.includes('value="community"') &&
-      reputationScriptText.includes('value="reliability"'),
-    "reputation interface uses all six stable lowercase domain identifiers"
   );
 
   const mine = await call(
@@ -235,15 +242,6 @@ async function main() {
       contextualProvenance.body.result.length === 0,
     "contextual review provenance returns an empty list for a new agent"
   );
-
-  const expectedDomains = [
-    "commerce",
-    "professional",
-    "hospitality",
-    "technical",
-    "community",
-    "reliability"
-  ];
 
   const summaries = contextualSummary.body.result;
 
