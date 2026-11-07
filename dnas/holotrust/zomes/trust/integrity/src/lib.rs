@@ -23,8 +23,7 @@ pub struct TrustRelationship {
 #[hdk_entry_helper]
 pub struct TrustRemoval {
     pub schema_version: u8,
-    pub relationship: ActionHash,
-    pub reason: Option<String>,
+    pub relationship_action: ActionHash,
 }
 
 #[hdk_entry_types]
@@ -61,16 +60,6 @@ pub fn validate_trust_removal(removal: &TrustRemoval) -> Result<(), String> {
         return Err("Unsupported trust removal schema version".into());
     }
 
-    if let Some(reason) = &removal.reason {
-        if reason.chars().count() > 500 {
-            return Err("Trust removal reason cannot exceed 500 characters".into());
-        }
-
-        if reason.chars().any(char::is_control) {
-            return Err("Trust removal reason contains invalid control characters".into());
-        }
-    }
-
     Ok(())
 }
 
@@ -104,7 +93,7 @@ fn validate_no_duplicate_active_relationship(
             .map_err(|error| wasm_error!(WasmErrorInner::Guest(error.to_string())))?;
 
         if let Some(removal) = removal {
-            removed_relationships.push(removal.relationship);
+            removed_relationships.push(removal.relationship_action);
         }
     }
 
@@ -126,6 +115,7 @@ fn validate_no_duplicate_active_relationship(
 
         let same_relationship = relationship.subject_agent == candidate.subject_agent
             && relationship.context == candidate.context;
+
         let already_removed = removed_relationships
             .iter()
             .any(|hash| hash == &relationship_hash);
@@ -166,7 +156,7 @@ fn validate_no_duplicate_removal(
             .map_err(|error| wasm_error!(WasmErrorInner::Guest(error.to_string())))?;
 
         if let Some(removal) = removal {
-            if removal.relationship == candidate.relationship {
+            if removal.relationship_action == candidate.relationship_action {
                 return Ok(ValidateCallbackResult::Invalid(
                     "A trust relationship can only be removed once".into(),
                 ));
@@ -203,7 +193,7 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
                 return Ok(ValidateCallbackResult::Invalid(reason));
             }
 
-            let original = must_get_valid_record(removal.relationship.clone())?;
+            let original = must_get_valid_record(removal.relationship_action.clone())?;
             let relationship = original
                 .entry()
                 .to_app_option::<TrustRelationship>()
@@ -251,6 +241,7 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
             };
 
             let record = must_get_valid_record(target)?;
+
             if record.action().author() != &author {
                 return Ok(ValidateCallbackResult::Invalid(
                     "Trust author link must reference a relationship created by its author".into(),
@@ -353,6 +344,7 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
             }
 
             let removal_record = must_get_valid_record(removal_hash)?;
+
             if removal_record.action().author() != action.author() {
                 return Ok(ValidateCallbackResult::Invalid(
                     "Trust removal link author must match the removal author".into(),
@@ -370,7 +362,7 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
                 ));
             };
 
-            if removal.relationship != relationship_hash {
+            if removal.relationship_action != relationship_hash {
                 return Ok(ValidateCallbackResult::Invalid(
                     "Trust removal link must reference the relationship being removed".into(),
                 ));
@@ -399,10 +391,12 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
 
         FlatOp::Delete(OpDelete { action }) => {
             let original = must_get_valid_record(action.deletes_address.clone())?;
+
             let relationship = original
                 .entry()
                 .to_app_option::<TrustRelationship>()
                 .map_err(|error| wasm_error!(WasmErrorInner::Guest(error.to_string())))?;
+
             let removal = original
                 .entry()
                 .to_app_option::<TrustRemoval>()
@@ -437,6 +431,7 @@ mod tests {
     fn accepts_supported_trust_contexts() {
         let author = test_agent(1);
         let subject = test_agent(2);
+
         let contexts = vec![
             TrustContext::General,
             TrustContext::Commerce,
@@ -453,6 +448,7 @@ mod tests {
                 subject_agent: subject.clone(),
                 context,
             };
+
             assert!(validate_trust_relationship(&relationship, &author).is_ok());
         }
     }
@@ -464,17 +460,20 @@ mod tests {
             subject_agent: test_agent(2),
             context: TrustContext::General,
         };
+
         assert!(validate_trust_relationship(&relationship, &test_agent(1)).is_err());
     }
 
     #[test]
     fn rejects_self_trust_relationship() {
         let author = test_agent(1);
+
         let relationship = TrustRelationship {
             schema_version: 1,
             subject_agent: author.clone(),
             context: TrustContext::General,
         };
+
         assert!(validate_trust_relationship(&relationship, &author).is_err());
     }
 
@@ -482,9 +481,9 @@ mod tests {
     fn accepts_valid_removal() {
         let removal = TrustRemoval {
             schema_version: 1,
-            relationship: ActionHash::from_raw_32(vec![3; 32]),
-            reason: Some("Relationship ended".into()),
+            relationship_action: ActionHash::from_raw_32(vec![3; 32]),
         };
+
         assert!(validate_trust_removal(&removal).is_ok());
     }
 
@@ -492,29 +491,9 @@ mod tests {
     fn rejects_unsupported_removal_schema() {
         let removal = TrustRemoval {
             schema_version: 2,
-            relationship: ActionHash::from_raw_32(vec![3; 32]),
-            reason: None,
+            relationship_action: ActionHash::from_raw_32(vec![3; 32]),
         };
-        assert!(validate_trust_removal(&removal).is_err());
-    }
 
-    #[test]
-    fn rejects_removal_reason_over_limit() {
-        let removal = TrustRemoval {
-            schema_version: 1,
-            relationship: ActionHash::from_raw_32(vec![3; 32]),
-            reason: Some("x".repeat(501)),
-        };
-        assert!(validate_trust_removal(&removal).is_err());
-    }
-
-    #[test]
-    fn rejects_control_characters_in_removal_reason() {
-        let removal = TrustRemoval {
-            schema_version: 1,
-            relationship: ActionHash::from_raw_32(vec![3; 32]),
-            reason: Some("invalid\nreason".into()),
-        };
         assert!(validate_trust_removal(&removal).is_err());
     }
 }
