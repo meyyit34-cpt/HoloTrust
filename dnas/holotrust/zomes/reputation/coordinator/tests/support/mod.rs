@@ -29,12 +29,6 @@ pub struct CreateAttestationInput {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-pub struct RevokeAttestationInput {
-    pub attestation: ActionHash,
-    pub reason: Option<String>,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
 pub struct GetAttestationInput {
     pub action_hash: ActionHash,
 }
