@@ -1,177 +1,198 @@
+HoloTrust — Development Roadmap
 
-# HoloTrust — Development Roadmap
+Project Objective
 
-## Project Objective
+Build a decentralized, agent-centric identity, attestation, reputation, and trust network using Holochain.
 
-Build a decentralized identity and reputation network using Holochain.
+Development proceeds through independently testable, security-focused phases.
 
-The project evolves through small, testable, security-focused development stages.
+⸻
 
----
-
-## Phase 0 — Foundation
+Phase 0 — Foundation
 
 Goal: Establish a reliable and reproducible development environment.
 
-Tasks:
-
-- [x] Create GitHub repository.
-- [x] Document project vision.
-- [x] Document technical architecture.
-- [x] Confirm compatible Holochain toolchain in CI.
-- [x] Pin Rust toolchain version in CI.
-- [x] Pin Holonix to a specific commit.
-- [x] Generate canonical Holochain DNA scaffold.
-- [x] Configure automated Rust formatting checks.
-- [x] Configure and verify linting checks.
-- [x] Establish automated CI pipeline.
+* [x]	Create GitHub repository.
+* [x]	Document project vision.
+* [x]	Document technical architecture.
+* [x]	Confirm compatible Holochain toolchain in CI.
+* [x]	Pin Rust toolchain version in CI.
+* [x]	Pin Holonix to a specific commit.
+* [x]	Generate canonical Holochain DNA scaffold.
+* [x]	Configure automated Rust formatting checks.
+* [x]	Configure and verify linting checks.
+* [x]	Establish automated CI pipeline.
 
 Status: Complete.
 
-## Phase 1 — Identity MVP
+Phase 1 — Identity MVP
 
 Goal: Implement the first functional identity layer.
 
-Tasks:
-
-- [x] Define identity entry schema.
-- [x] Implement identity integrity zome.
-- [x] Implement identity coordinator zome.
-- [x] Create agent profile.
-- [x] Retrieve own profile.
-- [x] Retrieve another agent's profile.
-- [x] Validate profile ownership.
-- [x] Implement profile input validation.
-- [x] Add automated tests.
-- [x] Verify multi-agent profile operations.
+* [x]	Define identity entry schema.
+* [x]	Implement identity integrity zome.
+* [x]	Implement identity coordinator zome.
+* [x]	Create agent profile.
+* [x]	Retrieve own profile.
+* [x]	Retrieve another agent’s profile.
+* [x]	Validate profile ownership.
+* [x]	Implement profile input validation.
+* [x]	Add automated tests.
+* [x]	Verify multi-agent profile operations.
 
 Exit criteria: Met.
 
 Status: Complete.
 
-## Phase 2 — Identity Discovery
+Phase 2 — Identity Discovery
 
 Goal: Enable reliable profile discovery and updates.
 
-Tasks:
+* [x]	Define agent-based profile discovery anchor.
+* [x]	Implement profile discovery links.
+* [x]	Define profile update semantics.
+* [x]	Ensure updates resolve to the latest profile after DHT consistency.
+* [x]	Test multi-agent profile discovery.
+* [x]	Test unauthorized and stale profile updates.
+* [x]	Implement duplicate profile-link rejection.
+* [x]	Add duplicate profile-link comparison tests.
+* [x]	Document discovery and update behavior.
+* [x]	Document DHT consistency and ordering limitations.
 
-- [x] Define agent-based profile discovery anchor.
-- [x] Implement profile discovery links.
-- [x] Define profile update semantics.
-- [x] Ensure updates resolve to the latest profile after DHT consistency.
-- [x] Test multi-agent profile discovery.
-- [x] Test unauthorized and stale profile updates.
-- [x] Implement duplicate profile-link rejection.
-- [x] Add duplicate profile-link comparison tests.
-- [x] Document discovery and update behavior.
-- [x] Document DHT consistency and ordering limitations.
-
-Exit criteria:
-
-- [x] Agents can discover published profiles.
-- [x] Profile updates resolve to the latest published version after consistency.
-- [x] Stale updates are rejected.
-- [x] Exact duplicate profile links are rejected.
-- [x] Historical profile actions remain available.
-- [x] Multi-agent discovery tests pass.
+Exit criteria: Met.
 
 Status: Complete.
 
-Note: Holochain DHT propagation is eventually consistent. A query can only resolve records and links available to that agent at query time. This phase does not claim globally instantaneous ordering across disconnected network states.
+Note: Holochain DHT propagation is eventually consistent. Queries reflect records and links available to the querying agent at query time.
 
-## Phase 3 — Verifiable Attestations
+Phase 3 — Verifiable Attestations
 
 Goal: Enable signed, verifiable claims.
 
-Tasks:
+* [x]	Define attestation schema.
+* [x]	Define issuer and subject relationships.
+* [x]	Implement attestation integrity rules.
+* [x]	Implement attestation coordinator.
+* [x]	Add issuer verification.
+* [x]	Define revocation and supersession semantics.
+* [x]	Verify supersession integrity with dedicated tests.
+* [x]	Add evidence-reference validation.
+* [x]	Add multi-agent integration tests.
 
-- [x] Define attestation schema.
-- [x] Define issuer and subject relationships.
-- [x] Implement attestation integrity rules.
-- [x] Implement attestation coordinator.
-- [x] Add issuer verification.
-- [x] Define revocation and supersession semantics.
-- [x] Verify supersession integrity with dedicated tests.
-- [x] Add evidence-reference validation.
-- [x] Add multi-agent integration tests.
-
-Exit criteria:
-
-- [x] Claims have verifiable issuers.
-- [x] Invalid claims are rejected.
-- [x] Historical changes remain auditable.
-- [x] Evidence references can be validated.
-- [x] Supersession and revocation authorization are tested.
-- [x] Multi-agent discovery and verification are tested.
+Exit criteria: Met.
 
 Status: Complete.
 
 Completion notes:
 
-- Dedicated supersession and revocation integration tests are implemented.
-- Tests use multiple independent agents and verify third-party discovery.
-- Unauthorized supersession and revocation attempts are rejected.
-- Historical attestations remain discoverable and auditable.
-- Superseded and revoked states are recognized by other agents.
-- Full CI run #197 passed build, test, packaging and conductor smoke-test stages.
+* Dedicated supersession and revocation integration tests are implemented.
+* Multi-agent tests verify third-party discovery.
+* Unauthorized supersession and revocation attempts are rejected.
+* Historical attestations remain discoverable and auditable.
+* Full CI run #197 passed its build, test, packaging, and conductor smoke-test stages.
 
-## Phase 4 — Contextual Reputation
+Phase 4 — Contextual Reputation
 
 Goal: Build evidence-based, domain-specific reputation.
 
-Tasks:
+* [x]	Define stable reputation domains.
+* [x]	Define evidence evaluation rules.
+* [x]	Design separate reputation integrity and coordinator zomes.
+* [x]	Preserve compatibility with existing legacy reviews.
+* [x]	Implement domain-specific reputation queries.
+* [x]	Prevent universal-score assumptions.
+* [x]	Add explainability and provenance.
+* [x]	Add multi-agent integration tests.
+* [x]	Integrate contextual reputation APIs into the web interface.
+* [x]	Verify end-to-end reputation workflows.
+* [x]	Document reputation architecture in ADR-003.
+* [x]	Finalize reputation specification.
 
-- [ ] Define stable reputation domains.
-- [ ] Define evidence evaluation rules.
-- [ ] Design separate reputation integrity and coordinator zomes.
-- [ ] Preserve compatibility with existing legacy reviews.
-- [ ] Implement domain-specific reputation queries.
-- [ ] Prevent universal-score assumptions.
-- [ ] Add explainability and provenance.
-- [ ] Add multi-agent integration tests.
-- [ ] Integrate contextual reputation APIs into the web interface.
-- [ ] Verify end-to-end reputation workflows.
+Exit criteria: Met.
 
-Current foundations:
+Status: Complete.
 
-- ADR-003 reputation architecture decision documented.
-- Contextual reputation specification drafted.
-- Reputation integrity and coordinator modules introduced.
-- Domain-based review and evidence-validation logic implemented.
+Completion notes:
 
-Status: In progress.
+* Contextual reputation uses a separate integrity and coordinator zome pair.
+* Domain-specific reviews and evidence validation are implemented.
+* Legacy reviews remain readable and excluded from contextual summaries.
+* Historical evidence status is handled through Attestation integration.
+* Multi-agent reputation and legacy compatibility tests passed.
+* Fast CI passed.
+* Full CI run #42371037589 completed successfully.
+* All required build, formatting, packaging, conductor smoke-test, and workspace test jobs passed.
+* Reputation specification status was updated to Implemented.
 
-## Phase 5 — Trust Graph
+Phase 5 — Trust Graph
 
-Goal: Establish relationships between agents.
+Goal: Establish explicit, directional, context-aware relationships between agents.
 
-Tasks:
+Design and architecture
 
-- [ ] Define trust relationship schema.
-- [ ] Implement relationship creation.
-- [ ] Implement relationship removal.
-- [ ] Implement relationship queries.
-- [ ] Add context-aware trust relationships.
-- [ ] Add multi-agent tests.
+* [x]	Create initial Trust Graph specification HT-TRUST-001.
+* [ ]	Review and approve Trust Graph specification.
+* [ ]	Document architectural decision ADR-004.
+* [ ]	Confirm module boundaries and security rules.
+* [ ]	Finalize relationship and removal data models.
 
-Status: Not started.
+Integrity and coordinator implementation
 
-## Phase 6 — Economic Integration
+* [ ]	Create trust_integrity zome.
+* [ ]	Create trust coordinator zome.
+* [ ]	Register both zomes in Cargo workspace.
+* [ ]	Register both zomes in DNA manifest.
+* [ ]	Implement directional relationship creation.
+* [ ]	Implement context validation.
+* [ ]	Reject self-relationships.
+* [ ]	Reject duplicate active relationships.
+* [ ]	Implement immutable relationship removal records.
+* [ ]	Enforce removal authorization.
+* [ ]	Implement relationship discovery and queries.
+* [ ]	Preserve historical relationship records.
+
+Testing and integration
+
+* [ ]	Add integrity validation tests.
+* [ ]	Add authorization and duplicate tests.
+* [ ]	Add three-agent discovery tests.
+* [ ]	Add context-specific query tests.
+* [ ]	Verify DHT consistency behavior.
+* [ ]	Integrate Trust Graph APIs into the frontend.
+* [ ]	Display incoming and outgoing relationships separately.
+* [ ]	Verify Fast CI.
+* [ ]	Verify Full CI and real-conductor behavior.
+
+Status: Design in progress.
+
+Important architectural constraints:
+
+* Relationships are directional.
+* Reciprocal trust is never automatic.
+* Trust is context-specific.
+* Only the original author can remove a relationship.
+* Historical records remain auditable.
+* No universal trust score.
+* No automatic transitive trust calculation.
+* No sensitive personal information in public DHT records.
+* Trust Graph does not modify Attestation or Reputation records.
+
+Phase 6 — Economic Integration
 
 Goal: Explore decentralized economic coordination.
 
 Potential integrations:
 
-- hREA
-- Unyt
-- Holochain economic infrastructure
-- HoloFuel-compatible coordination models
+* hREA
+* Unyt
+* Holochain economic infrastructure
+* HoloFuel-compatible coordination models
 
 Status: Not started.
 
----
+⸻
 
-## Engineering Principles
+Engineering Principles
 
 1. Security before convenience.
 2. Small, independently testable changes.
@@ -181,46 +202,53 @@ Status: Not started.
 6. Backward compatibility for published records.
 7. Documentation updated with implementation.
 8. Existing working code must not be changed without a verified reason.
+9. Static analysis before expensive integration tests.
+10. Fast CI and targeted tests before Full CI.
+11. Full CI only after preliminary checks pass.
 
----
+⸻
 
-## Current Status
+Current Status
 
-Current phase: Phase 4 — Contextual Reputation.
+Completed phases:
 
-Completed foundations:
+* Phase 0 — Foundation.
+* Phase 1 — Identity MVP.
+* Phase 2 — Identity Discovery.
+* Phase 3 — Verifiable Attestations.
+* Phase 4 — Contextual Reputation.
 
-- Holochain DNA and hApp build.
-- Identity integrity and coordinator zomes.
-- Agent profile creation and retrieval.
-- Profile ownership and update validation.
-- Multi-agent identity tests.
-- Duplicate profile-link protection.
-- Identity discovery documentation.
-- Automated CI pipeline.
-- Rust formatting and Clippy checks verified.
-- Attestation schema and integrity validation.
-- Attestation coordinator and issuer verification.
-- Attestation revocation and supersession logic.
-- Dedicated multi-agent supersession and revocation tests.
-- Evidence-reference validation.
-- Full CI build, test, packaging and conductor smoke-test verification.
+Current phase:
 
-Phase 4 foundations:
+Phase 5 — Trust Graph.
 
-- Reputation architecture decision documented.
-- Contextual reputation specification drafted.
-- Separate reputation integrity and coordinator modules introduced.
-- Domain-specific review and evidence-validation logic introduced.
+Current milestone:
 
-Next milestone:
+Finalize and approve HT-TRUST-001 and ADR-004 before implementation.
 
-Complete contextual reputation multi-agent integration tests and verify domain-specific reputation workflows.
+Next implementation sequence:
 
-Following milestone:
+1. Approve Trust Graph specification.
+2. Accept ADR-004.
+3. Inspect existing workspace and DNA configuration.
+4. Design trust integrity data structures and validation.
+5. Implement trust_integrity.
+6. Implement trust coordinator.
+7. Add targeted tests before expensive multi-agent tests.
+8. Verify Fast CI.
+9. Run Full CI only after all preliminary checks pass.
+10. Integrate the frontend.
 
-Integrate contextual reputation APIs into the web interface and complete Phase 4 end-to-end verification.
-
----
+⸻
 
 HoloTrust — Building the trust infrastructure of the agent-centric internet.
+
+Identity establishes the agent.
+
+Attestation records the claim.
+
+Evidence supports verification.
+
+Reputation evaluates evidence in context.
+
+Trust Graph records declared relationships between agents.
