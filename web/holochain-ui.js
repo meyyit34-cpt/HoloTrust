@@ -6,7 +6,7 @@ import {
 import {
   encodeHashToBase64,
   decodeHashFromBase64
-} from "https://esm.sh/@holochain/client@0.21.0";
+} from "https://esm.sh/@holochain/client@0.21.1";
 
 import { decode } from "https://esm.sh/@msgpack/msgpack@3.1.2";
 
@@ -213,6 +213,7 @@ async function connect() {
     setBusy(false);
   }
 }
+
 async function saveProfile(event) {
   event.preventDefault();
   event.stopImmediatePropagation();
