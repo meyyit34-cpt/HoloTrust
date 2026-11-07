@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="tr">
 <head>
@@ -6,7 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="theme-color" content="#0b1220">
   <meta name="description" content="HoloTrust — Merkeziyetsiz kimlik ve itibar ağı">
-
   <title>HoloTrust | Decentralized Identity & Reputation</title>
 
   <style>
@@ -21,9 +19,7 @@
       --input: #0b1220;
     }
 
-    * {
-      box-sizing: border-box;
-    }
+    * { box-sizing: border-box; }
 
     body {
       margin: 0;
@@ -46,10 +42,7 @@
       letter-spacing: 4px;
     }
 
-    header p {
-      margin: 10px 0 0;
-      color: var(--muted);
-    }
+    header p { color: var(--muted); }
 
     main {
       width: min(900px, calc(100% - 28px));
@@ -64,14 +57,8 @@
       border-radius: 16px;
     }
 
-    h2 {
-      margin-top: 0;
-      font-size: 21px;
-    }
-
-    h3 {
-      font-size: 17px;
-    }
+    h2 { margin-top: 0; font-size: 21px; }
+    h3 { font-size: 17px; }
 
     label {
       display: block;
@@ -80,9 +67,7 @@
       font-size: 14px;
     }
 
-    input,
-    textarea,
-    select {
+    input, textarea, select {
       display: block;
       width: 100%;
       padding: 13px;
@@ -93,16 +78,12 @@
       font: inherit;
     }
 
-    input:focus,
-    textarea:focus,
-    select:focus {
+    input:focus, textarea:focus, select:focus {
       outline: 2px solid var(--accent);
       outline-offset: 1px;
     }
 
-    textarea {
-      resize: vertical;
-    }
+    textarea { resize: vertical; }
 
     button {
       padding: 12px 17px;
@@ -115,10 +96,7 @@
       cursor: pointer;
     }
 
-    button:disabled {
-      opacity: .5;
-      cursor: not-allowed;
-    }
+    button:disabled { opacity: .5; cursor: not-allowed; }
 
     button.secondary {
       color: var(--text);
@@ -147,9 +125,7 @@
       line-height: 1.6;
     }
 
-    .hidden {
-      display: none !important;
-    }
+    .hidden { display: none !important; }
 
     .identity-types {
       display: flex;
@@ -157,13 +133,47 @@
       gap: 8px;
     }
 
-    .identity-types button {
-      min-width: 90px;
+    .identity-types button { min-width: 90px; }
+
+    .profile-id, .rep-hash {
+      word-break: break-all;
+      overflow-wrap: anywhere;
     }
 
-    .profile-id {
-      word-break: break-all;
+    .rep-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 12px;
+      margin-top: 16px;
     }
+
+    .rep-card, .rep-review, .rep-domain {
+      padding: 14px;
+      margin-top: 10px;
+      background: var(--input);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+    }
+
+    .rep-card strong {
+      display: block;
+      margin-bottom: 8px;
+    }
+
+    .rep-card .rep-score {
+      color: var(--accent);
+      font-size: 24px;
+      font-weight: 700;
+    }
+
+    .rep-muted {
+      color: var(--muted);
+      font-size: 12px;
+      margin-top: 7px;
+      overflow-wrap: anywhere;
+    }
+
+    .rep-review p { white-space: pre-wrap; overflow-wrap: anywhere; }
 
     footer {
       padding: 28px 18px;
@@ -174,257 +184,169 @@
     }
 
     @media (max-width: 600px) {
-      header {
-        padding: 25px 14px;
-      }
-
-      main {
-        width: calc(100% - 20px);
-        margin: 18px auto;
-      }
-
-      .panel {
-        padding: 17px;
-      }
-
-      button {
-        max-width: 100%;
-      }
+      header { padding: 25px 14px; }
+      main { width: calc(100% - 20px); margin: 18px auto; }
+      .panel { padding: 17px; }
+      button { max-width: 100%; }
     }
   </style>
 </head>
 
 <body>
-
   <header>
     <h1>HOLOTRUST</h1>
     <p>Decentralized Identity & Reputation Network</p>
-    <p class="muted">
-      Human · AI · Service
-    </p>
+    <p class="muted">Human · AI · Service</p>
   </header>
 
   <main>
-
-    <!-- IDENTITY SECTION -->
-
     <section class="panel" id="identityPanel">
-
       <h2>Agent Identity</h2>
-
       <p class="muted">
         İnsanlar, yapay zekâ ajanları ve dijital servisler için
         merkeziyetsiz kimlik ve itibar altyapısı.
       </p>
 
-      <div
-        id="connectionStatus"
-        class="status"
-        role="status"
-        aria-live="polite"
-      >
+      <div id="connectionStatus" class="status" role="status" aria-live="polite">
         Holochain bağlantısı bekleniyor.
       </div>
 
       <div>
-        <button
-          id="connectButton"
-          type="button"
-        >
-          Holochain'e bağlan
-        </button>
-
-        <button
-          id="readButton"
-          type="button"
-          class="secondary"
-          disabled
-        >
+        <button id="connectButton" type="button">Holochain'e bağlan</button>
+        <button id="readButton" type="button" class="secondary" disabled>
           Profilimi ağdan oku
         </button>
       </div>
 
-      <!-- PROFILE FORM -->
-
       <form id="profileForm">
+        <label for="displayName">Görünen ad</label>
+        <input id="displayName" name="displayName" type="text"
+          maxlength="64" autocomplete="nickname" required
+          placeholder="Ajan adını gir">
 
-        <label for="displayName">
-          Görünen ad
-        </label>
-
-        <input
-          id="displayName"
-          name="displayName"
-          type="text"
-          maxlength="64"
-          autocomplete="nickname"
-          required
-          placeholder="Ajan adını gir"
-        >
-
-        <label>
-          Ajan türü
-        </label>
-
+        <label>Ajan türü</label>
         <div class="identity-types">
-
-          <button
-            class="type active"
-            type="button"
-            data-type="Human"
-          >
-            Human
-          </button>
-
-          <button
-            class="type"
-            type="button"
-            data-type="AI"
-          >
-            AI
-          </button>
-
-          <button
-            class="type"
-            type="button"
-            data-type="Service"
-          >
-            Service
-          </button>
-
+          <button class="type active" type="button" data-type="Human">Human</button>
+          <button class="type" type="button" data-type="AI">AI</button>
+          <button class="type" type="button" data-type="Service">Service</button>
         </div>
 
-        <label for="description">
-          Açıklama
-        </label>
+        <label for="description">Açıklama</label>
+        <textarea id="description" name="description" maxlength="280"
+          rows="4" placeholder="Kendini veya hizmetini tanıt..."></textarea>
 
-        <textarea
-          id="description"
-          name="description"
-          maxlength="280"
-          rows="4"
-          placeholder="Kendini veya hizmetini tanıt..."
-        ></textarea>
-
-        <button
-          id="saveButton"
-          type="submit"
-        >
-          Profili kaydet
-        </button>
-
+        <button id="saveButton" type="submit">Profili kaydet</button>
       </form>
 
-      <!-- PROFILE CARD -->
-
-      <div
-        id="profileCard"
-        class="status hidden"
-        aria-live="polite"
-      >
-
+      <div id="profileCard" class="status hidden" aria-live="polite">
         <h3 id="cardName"></h3>
-
         <p id="cardType"></p>
-
         <p id="cardDescription"></p>
-
-        <p
-          id="profileId"
-          class="muted profile-id"
-        ></p>
-
-        <button
-          id="copyButton"
-          type="button"
-        >
-          Agent Public Key'imi kopyala
-        </button>
-
-        <button
-          id="editButton"
-          type="button"
-          class="secondary"
-        >
-          Düzenle
-        </button>
-
+        <p id="profileId" class="muted profile-id"></p>
+        <button id="copyButton" type="button">Agent Public Key'imi kopyala</button>
+        <button id="editButton" type="button" class="secondary">Düzenle</button>
       </div>
 
-      <!-- NOTIFICATIONS -->
-
-      <div
-        id="toast"
-        class="status hidden"
-        role="status"
-        aria-live="polite"
-      ></div>
-
+      <div id="toast" class="status hidden" role="status" aria-live="polite"></div>
     </section>
-
-    <!-- PUBLIC IDENTITY LOOKUP -->
 
     <section class="panel" id="publicLookupPanel">
-
       <h2>Public Agent Lookup</h2>
-
       <p class="muted">
-        Holochain Agent Public Key kullanarak başka bir ajanın
-        merkeziyetsiz profilini görüntüle.
+        Agent Public Key kullanarak başka bir ajanın merkeziyetsiz profilini görüntüle.
       </p>
 
-      <label for="publicAgentHash">
-        Agent Public Key
-      </label>
+      <label for="publicAgentHash">Agent Public Key</label>
+      <input id="publicAgentHash" type="text" autocomplete="off"
+        spellcheck="false" placeholder="uhCAk...">
 
-      <input
-        id="publicAgentHash"
-        type="text"
-        autocomplete="off"
-        spellcheck="false"
-        placeholder="uhCAk..."
-      >
+      <button id="publicLookupButton" type="button">Profili görüntüle</button>
 
-      <button
-        id="publicLookupButton"
-        type="button"
-      >
-        Profili görüntüle
-      </button>
-
-      <div
-        id="publicProfileResult"
-        class="status"
-        aria-live="polite"
-      >
+      <div id="publicProfileResult" class="status" aria-live="polite">
         Arama bekleniyor.
       </div>
-
     </section>
 
+    <section class="panel" id="reputationPanel">
+      <h2>Contextual Reputation</h2>
+      <p class="muted">
+        İtibar tek bir evrensel puan değildir. Her alan kendi değerlendirmeleri,
+        kanıtları ve ortalamasıyla ayrı tutulur.
+      </p>
+
+      <div id="repConnectionStatus" class="status" role="status" aria-live="polite">
+        Holochain bağlantısı bekleniyor.
+      </div>
+
+      <button id="repConnectButton" type="button">Holochain'e bağlan</button>
+
+      <label for="repSubjectAgent">İncelenecek ajanın Agent Public Key bilgisi</label>
+      <input id="repSubjectAgent" type="text" placeholder="uhCAk...">
+
+      <button id="repLoadButton" type="button" class="secondary">
+        İtibar bilgilerini yükle
+      </button>
+
+      <h3>Alan bazlı itibar özeti</h3>
+      <div id="repSummary" class="rep-grid">
+        <p class="muted">Henüz veri yüklenmedi.</p>
+      </div>
+
+      <label for="repDomain">Değerlendirme alanı</label>
+      <select id="repDomain">
+        <option value="commerce">Ticaret</option>
+        <option value="professional">Profesyonellik</option>
+        <option value="hospitality">Misafirperverlik</option>
+        <option value="technical">Teknik yeterlilik</option>
+        <option value="community">Topluluk</option>
+        <option value="reliability">Güvenilirlik</option>
+      </select>
+
+      <h3>Değerlendirme oluştur</h3>
+      <p class="muted">
+        Değerlendirme için incelenen ajana ait en az bir aktif Attestation
+        ActionHash gereklidir. En fazla beş kanıt girebilirsin.
+      </p>
+
+      <form id="repCreateForm">
+        <label for="repRating">Puan</label>
+        <select id="repRating" required>
+          <option value="5">5 — Çok iyi</option>
+          <option value="4">4 — İyi</option>
+          <option value="3">3 — Orta</option>
+          <option value="2">2 — Zayıf</option>
+          <option value="1">1 — Çok zayıf</option>
+        </select>
+
+        <label for="repComment">Açıklama (en fazla 500 karakter)</label>
+        <textarea id="repComment" maxlength="500" rows="3"
+          placeholder="Değerlendirmeni yaz..."></textarea>
+
+        <label for="repEvidence">Attestation ActionHash değerleri</label>
+        <textarea id="repEvidence" rows="3"
+          placeholder="Her satıra bir ActionHash yaz"></textarea>
+
+        <button id="repSubmitButton" type="submit">
+          Değerlendirmeyi ağa gönder
+        </button>
+      </form>
+
+      <div id="repMessage" class="status hidden" role="status" aria-live="polite"></div>
+
+      <h3>Değerlendirmeler ve kanıt geçmişi</h3>
+      <div id="repReviews" aria-live="polite">
+        <p class="muted">Henüz değerlendirme yüklenmedi.</p>
+      </div>
+    </section>
   </main>
 
   <footer>
     <p>HOLOTRUST</p>
     <p>Agent-centric identity and reputation network</p>
-    <p class="muted">
-      Built on Holochain · Decentralized by design
-    </p>
+    <p class="muted">Built on Holochain · Decentralized by design</p>
   </footer>
 
-  <!-- HOLOCHAIN IDENTITY MODULE -->
-
-  <script
-    type="module"
-    src="./holochain-ui.js"
-  ></script>
-
-  <!-- REPUTATION MODULE -->
-
-  <script
-    type="module"
-    src="./reputation-ui.js"
-  ></script>
-
+  <script type="module" src="./holochain-ui.js"></script>
+  <script type="module" src="./reputation-ui.js"></script>
 </body>
 </html>
