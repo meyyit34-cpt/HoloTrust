@@ -76,8 +76,9 @@ async function main() {
   check(
     reputationScriptText.includes("create_contextual_review") &&
       reputationScriptText.includes("get_contextual_reviews") &&
+      reputationScriptText.includes("get_contextual_reviews_with_provenance") &&
       reputationScriptText.includes("get_contextual_reputation_summary"),
-    "reputation interface references all three contextual APIs"
+    "reputation interface references all four contextual APIs"
   );
 
   check(
@@ -213,6 +214,26 @@ async function main() {
   check(
     contextualSummary.status === 200,
     "contextual reputation summary via proxy returns 200"
+  );
+
+  const contextualProvenance = await call(
+    "reputation_coordinator",
+    "get_contextual_reviews_with_provenance",
+    {
+      subject_agent: agentKey,
+      domain: null
+    }
+  );
+
+  check(
+    contextualProvenance.status === 200,
+    "contextual review provenance API via proxy returns 200"
+  );
+
+  check(
+    Array.isArray(contextualProvenance.body.result) &&
+      contextualProvenance.body.result.length === 0,
+    "contextual review provenance returns an empty list for a new agent"
   );
 
   const expectedDomains = [
