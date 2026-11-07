@@ -1,0 +1,17 @@
+[package]
+name = "trust_coordinator"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+hdk = { workspace = true }
+serde = { workspace = true }
+trust_integrity = { path = "../integrity" }
+
+[dev-dependencies]
+holochain = { version = "=0.7.1", default-features = false, features = ["sweettest", "wasmer-sys-cranelift", "encryption"] }
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
