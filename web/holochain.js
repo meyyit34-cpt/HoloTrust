@@ -18,6 +18,7 @@ const ALLOWED_FUNCTIONS = {
   reputation_coordinator: new Set([
     "create_contextual_review",
     "get_contextual_reviews",
+    "get_contextual_reviews_with_provenance",
     "get_contextual_reputation_summary"
   ])
 };
