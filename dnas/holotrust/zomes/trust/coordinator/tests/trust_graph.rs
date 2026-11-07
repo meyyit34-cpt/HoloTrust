@@ -11,8 +11,7 @@ use trust_integrity::TrustContext;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn trust_graph_enforces_direction_context_authorization_and_history() {
-    let dna_path =
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../workdir/holotrust.dna");
+    let dna_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../workdir/holotrust.dna");
 
     assert!(
         dna_path.exists(),
@@ -89,10 +88,7 @@ async fn trust_graph_enforces_direction_context_authorization_and_history() {
         .await;
 
     assert_eq!(bob_incoming.len(), 1);
-    assert_eq!(
-        bob_incoming[0].relationship.action_address(),
-        &alice_to_bob
-    );
+    assert_eq!(bob_incoming[0].relationship.action_address(), &alice_to_bob);
 
     // Context filtering must preserve the requested author scope.
     let commerce_relationships: Vec<TrustRelationshipHistory> = conductors[2]
@@ -274,10 +270,7 @@ async fn trust_graph_enforces_direction_context_authorization_and_history() {
 
     let history = history.expect("Removed relationship history was not found");
 
-    assert_eq!(
-        history.relationship.action_address(),
-        &alice_to_bob
-    );
+    assert_eq!(history.relationship.action_address(), &alice_to_bob);
     assert!(!history.is_active);
     assert!(history.removal.is_some());
 
@@ -334,15 +327,9 @@ async fn trust_graph_enforces_direction_context_authorization_and_history() {
         "Both original and recreated declarations must remain discoverable"
     );
 
-    let active_count = final_outgoing
-        .iter()
-        .filter(|item| item.is_active)
-        .count();
+    let active_count = final_outgoing.iter().filter(|item| item.is_active).count();
 
-    let removed_count = final_outgoing
-        .iter()
-        .filter(|item| !item.is_active)
-        .count();
+    let removed_count = final_outgoing.iter().filter(|item| !item.is_active).count();
 
     assert_eq!(active_count, 1);
     assert_eq!(removed_count, 1);
