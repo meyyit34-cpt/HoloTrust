@@ -36,4 +36,3 @@ coordinator:
       path: ../../../target/wasm32-unknown-unknown/release/reputation_coordinator.wasm
       dependencies:
         - name: reputation_integrity
-        - name: attestation_coordinator
