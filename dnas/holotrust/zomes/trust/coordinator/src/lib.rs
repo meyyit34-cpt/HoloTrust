@@ -41,9 +41,17 @@ pub struct GetTrustRelationshipHistoryInput {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
+pub struct AreTrustRelationshipsMutualInput {
+    pub agent_a: AgentPubKey,
+    pub agent_b: AgentPubKey,
+    pub context: TrustContext,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
 pub struct TrustRelationshipHistory {
     pub relationship: Record,
     pub removal: Option<Record>,
+    pub is_active: bool,
 }
 
 fn decode_relationship(record: &Record) -> ExternResult<Option<TrustRelationship>> {
@@ -108,10 +116,12 @@ fn relationship_history(
     let relationship_action = relationship.action_address().clone();
 
     let removal = get_removal_record(&relationship_action, &author)?;
+    let is_active = removal.is_none();
 
     Ok(TrustRelationshipHistory {
         relationship,
         removal,
+        is_active,
     })
 }
 
@@ -206,7 +216,7 @@ pub fn remove_trust_relationship(
 #[hdk_extern]
 pub fn get_trust_relationship(
     input: GetTrustRelationshipInput,
-) -> ExternResult<Option<Record>> {
+) -> ExternResult<Option<TrustRelationshipHistory>> {
     let Some(record) = get(input.action_hash, GetOptions::default())? else {
         return Ok(None);
     };
@@ -215,13 +225,13 @@ pub fn get_trust_relationship(
         return Ok(None);
     }
 
-    Ok(Some(record))
+    Ok(Some(relationship_history(record)?))
 }
 
 #[hdk_extern]
 pub fn get_trust_relationships_by_author(
     input: GetTrustRelationshipsByAuthorInput,
-) -> ExternResult<Vec<Record>> {
+) -> ExternResult<Vec<TrustRelationshipHistory>> {
     let links = get_links(
         LinkQuery::try_new(
             input.author.clone(),
@@ -257,10 +267,10 @@ pub fn get_trust_relationships_by_author(
             continue;
         }
 
-        records.push(record);
+        records.push(relationship_history(record)?);
     }
 
-    records.sort_by_key(|record| record.action().timestamp());
+    records.sort_by_key(|item| item.relationship.action().timestamp());
 
     Ok(records)
 }
@@ -268,7 +278,7 @@ pub fn get_trust_relationships_by_author(
 #[hdk_extern]
 pub fn get_trust_relationships_for_subject(
     input: GetTrustRelationshipsForSubjectInput,
-) -> ExternResult<Vec<Record>> {
+) -> ExternResult<Vec<TrustRelationshipHistory>> {
     let links = get_links(
         LinkQuery::try_new(
             input.subject_agent.clone(),
@@ -300,10 +310,10 @@ pub fn get_trust_relationships_for_subject(
             continue;
         }
 
-        records.push(record);
+        records.push(relationship_history(record)?);
     }
 
-    records.sort_by_key(|record| record.action().timestamp());
+    records.sort_by_key(|item| item.relationship.action().timestamp());
 
     Ok(records)
 }
@@ -311,7 +321,7 @@ pub fn get_trust_relationships_for_subject(
 #[hdk_extern]
 pub fn get_trust_relationships_by_context(
     input: GetTrustRelationshipsByContextInput,
-) -> ExternResult<Vec<Record>> {
+) -> ExternResult<Vec<TrustRelationshipHistory>> {
     let records = get_trust_relationships_by_author(
         GetTrustRelationshipsByAuthorInput {
             author: input.author,
@@ -320,13 +330,13 @@ pub fn get_trust_relationships_by_context(
 
     let mut filtered = Vec::new();
 
-    for record in records {
-        let Some(relationship) = decode_relationship(&record)? else {
+    for item in records {
+        let Some(relationship) = decode_relationship(&item.relationship)? else {
             continue;
         };
 
         if relationship.context == input.context {
-            filtered.push(record);
+            filtered.push(item);
         }
     }
 
@@ -349,4 +359,68 @@ pub fn get_trust_relationship_history(
     }
 
     Ok(Some(relationship_history(record)?))
+}
+
+#[hdk_extern]
+pub fn are_trust_relationships_mutual(
+    input: AreTrustRelationshipsMutualInput,
+) -> ExternResult<bool> {
+    if input.agent_a == input.agent_b {
+        return Ok(false);
+    }
+
+    let a_relationships = get_trust_relationships_by_author(
+        GetTrustRelationshipsByAuthorInput {
+            author: input.agent_a.clone(),
+        },
+    )?;
+
+    let b_relationships = get_trust_relationships_by_author(
+        GetTrustRelationshipsByAuthorInput {
+            author: input.agent_b.clone(),
+        },
+    )?;
+
+    let mut a_trusts_b = false;
+    let mut b_trusts_a = false;
+
+    for item in a_relationships {
+        if !item.is_active {
+            continue;
+        }
+
+        let Some(relationship) = decode_relationship(&item.relationship)? else {
+            continue;
+        };
+
+        if relationship.subject_agent == input.agent_b
+            && relationship.context == input.context
+        {
+            a_trusts_b = true;
+            break;
+        }
+    }
+
+    if !a_trusts_b {
+        return Ok(false);
+    }
+
+    for item in b_relationships {
+        if !item.is_active {
+            continue;
+        }
+
+        let Some(relationship) = decode_relationship(&item.relationship)? else {
+            continue;
+        };
+
+        if relationship.subject_agent == input.agent_a
+            && relationship.context == input.context
+        {
+            b_trusts_a = true;
+            break;
+        }
+    }
+
+    Ok(a_trusts_b && b_trusts_a)
 }
