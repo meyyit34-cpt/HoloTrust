@@ -211,11 +211,7 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
                 ));
             }
 
-            validate_no_duplicate_removal(
-                action.author(),
-                action.prev_action().cloned(),
-                &removal,
-            )
+            validate_no_duplicate_removal(action.author(), action.prev_action().cloned(), &removal)
         }
 
         FlatOp::Link(OpLink::CreateLink {

@@ -122,9 +122,7 @@ fn relationship_history(relationship: Record) -> ExternResult<TrustRelationshipH
 }
 
 #[hdk_extern]
-pub fn create_trust_relationship(
-    input: CreateTrustRelationshipInput,
-) -> ExternResult<ActionHash> {
+pub fn create_trust_relationship(input: CreateTrustRelationshipInput) -> ExternResult<ActionHash> {
     let author = agent_info()?.agent_initial_pubkey;
 
     let relationship = TrustRelationship {
@@ -156,15 +154,10 @@ pub fn create_trust_relationship(
 }
 
 #[hdk_extern]
-pub fn remove_trust_relationship(
-    input: RemoveTrustRelationshipInput,
-) -> ExternResult<ActionHash> {
+pub fn remove_trust_relationship(input: RemoveTrustRelationshipInput) -> ExternResult<ActionHash> {
     let author = agent_info()?.agent_initial_pubkey;
 
-    let Some(original) = get(
-        input.relationship_action.clone(),
-        GetOptions::default(),
-    )? else {
+    let Some(original) = get(input.relationship_action.clone(), GetOptions::default())? else {
         return Err(wasm_error!(WasmErrorInner::Guest(
             "Trust relationship not found".into(),
         )));
@@ -228,10 +221,7 @@ pub fn get_trust_relationships_by_author(
     input: GetTrustRelationshipsByAuthorInput,
 ) -> ExternResult<Vec<TrustRelationshipHistory>> {
     let links = get_links(
-        LinkQuery::try_new(
-            input.author.clone(),
-            LinkTypes::AuthorToTrustRelationship,
-        )?,
+        LinkQuery::try_new(input.author.clone(), LinkTypes::AuthorToTrustRelationship)?,
         GetStrategy::default(),
     )?;
 
@@ -359,17 +349,13 @@ pub fn are_trust_relationships_mutual(
         return Ok(false);
     }
 
-    let a_relationships = get_trust_relationships_by_author(
-        GetTrustRelationshipsByAuthorInput {
-            author: input.agent_a.clone(),
-        },
-    )?;
+    let a_relationships = get_trust_relationships_by_author(GetTrustRelationshipsByAuthorInput {
+        author: input.agent_a.clone(),
+    })?;
 
-    let b_relationships = get_trust_relationships_by_author(
-        GetTrustRelationshipsByAuthorInput {
-            author: input.agent_b.clone(),
-        },
-    )?;
+    let b_relationships = get_trust_relationships_by_author(GetTrustRelationshipsByAuthorInput {
+        author: input.agent_b.clone(),
+    })?;
 
     let mut a_trusts_b = false;
     let mut b_trusts_a = false;
