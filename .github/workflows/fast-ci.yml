@@ -32,6 +32,31 @@ jobs:
       - name: Check formatting
         run: cargo fmt --all -- --check
 
+  frontend-syntax:
+    name: Frontend JavaScript syntax checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Check browser JavaScript modules
+        run: |
+          node --input-type=module --check < web/holochain.js
+          node --input-type=module --check < web/holochain-ui.js
+          node --input-type=module --check < web/reputation-ui.js
+
+      - name: Check development scripts
+        run: |
+          node --check dev/dev-server.mjs
+          node --check dev/proxy-test.mjs
+          node --check dev/smoke-test.mjs
+
   lint:
     name: Rust lint checks
     runs-on: ubuntu-latest
