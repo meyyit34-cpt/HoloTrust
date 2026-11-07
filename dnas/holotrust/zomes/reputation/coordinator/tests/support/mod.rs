@@ -15,7 +15,10 @@ pub enum ClaimType {
 pub enum EvidenceReference {
     Action(ActionHash),
     Entry(holochain::prelude::EntryHash),
-    External { url: String, sha256: String },
+    External {
+        url: String,
+        sha256: String,
+    },
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -28,11 +31,13 @@ pub struct CreateAttestationInput {
     pub supersedes: Option<ActionHash>,
 }
 
+#[allow(dead_code)]
 #[derive(Serialize, Deserialize, Debug)]
 pub struct GetAttestationInput {
     pub action_hash: ActionHash,
 }
 
+#[allow(dead_code)]
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 pub enum AttestationStatus {
     Active,
