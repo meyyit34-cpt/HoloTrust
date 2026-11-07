@@ -2,20 +2,20 @@ import { decode, encode } from "@msgpack/msgpack";
 import { encodeHashToBase64 } from "@holochain/client";
 
 const BASE = "http://127.0.0.1:" + (process.env.WEB_PORT ?? "8080");
-const ZOME_NAME = "identity_coordinator";
 
 function check(condition, message) {
   if (!condition) {
     throw new Error("PROXY FAIL: " + message);
   }
+
   console.log("PROXY PASS: " + message);
 }
 
-async function call(fnName, payload) {
+async function call(zomeName, fnName, payload) {
   const url =
     BASE +
     "/hc/call/" +
-    encodeURIComponent(ZOME_NAME) +
+    encodeURIComponent(zomeName) +
     "/" +
     encodeURIComponent(fnName);
 
@@ -58,7 +58,33 @@ async function main() {
   const page = await fetch(BASE + "/");
   check(page.ok, "static index.html is served");
 
-  const mine = await call("get_my_profile", null);
+  const pageText = await page.text();
+
+  check(
+    pageText.includes("reputation-ui.js"),
+    "index.html loads the contextual reputation interface"
+  );
+
+  const reputationScript = await fetch(BASE + "/reputation-ui.js");
+  check(
+    reputationScript.ok,
+    "contextual reputation JavaScript is served"
+  );
+
+  const reputationScriptText = await reputationScript.text();
+
+  check(
+    reputationScriptText.includes("create_contextual_review") &&
+      reputationScriptText.includes("get_contextual_reviews") &&
+      reputationScriptText.includes("get_contextual_reputation_summary"),
+    "reputation interface references all three contextual APIs"
+  );
+
+  const mine = await call(
+    "identity_coordinator",
+    "get_my_profile",
+    null
+  );
 
   if (mine.status !== 200) {
     throw new Error(
@@ -86,12 +112,16 @@ async function main() {
     "record action hash survives the proxy"
   );
 
-  const updated = await call("update_profile", {
-    action_hash: hash,
-    display_name: "Proxy Updated",
-    agent_type: "Service",
-    description: null
-  });
+  const updated = await call(
+    "identity_coordinator",
+    "update_profile",
+    {
+      action_hash: hash,
+      display_name: "Proxy Updated",
+      agent_type: "Service",
+      description: null
+    }
+  );
 
   check(
     updated.status === 200,
@@ -103,58 +133,156 @@ async function main() {
     "update_profile returns an action hash"
   );
 
-  const reviews = await call("get_reviews", {
-    subject_agent: agentKey
-  });
+  const reviews = await call(
+    "identity_coordinator",
+    "get_reviews",
+    {
+      subject_agent: agentKey
+    }
+  );
 
   check(
     reviews.status === 200,
-    "get_reviews via proxy returns 200"
+    "legacy get_reviews via proxy returns 200"
   );
 
   check(
     Array.isArray(reviews.body.result) &&
       reviews.body.result.length === 0,
-    "get_reviews returns an empty list for an unreviewed agent"
+    "legacy get_reviews returns an empty list for an unreviewed agent"
   );
 
-  const summary = await call("get_reputation_summary", {
-    subject_agent: agentKey
-  });
+  const legacySummary = await call(
+    "identity_coordinator",
+    "get_reputation_summary",
+    {
+      subject_agent: agentKey
+    }
+  );
 
   check(
-    summary.status === 200,
-    "get_reputation_summary returns 200"
+    legacySummary.status === 200,
+    "legacy get_reputation_summary returns 200"
   );
 
   check(
-    summary.body.result.review_count === 0 &&
-      summary.body.result.average_rating === 0,
-    "summary is 0 reviews and 0 average"
+    legacySummary.body.result.review_count === 0 &&
+      legacySummary.body.result.average_rating === 0,
+    "legacy summary is 0 reviews and 0 average"
   );
 
-  const selfReview = await call("create_review", {
-    subject_agent: agentKey,
-    rating: 5,
-    comment: null
-  });
+  const contextualReviews = await call(
+    "reputation_coordinator",
+    "get_contextual_reviews",
+    {
+      subject_agent: agentKey,
+      domain: null
+    }
+  );
 
-  console.log(
-    "PROXY INFO: self review error = " +
-    selfReview.body.error
+  check(
+    contextualReviews.status === 200,
+    "contextual get_contextual_reviews via proxy returns 200"
+  );
+
+  check(
+    Array.isArray(contextualReviews.body.result) &&
+      contextualReviews.body.result.length === 0,
+    "contextual reviews returns an empty list for a new agent"
+  );
+
+  const contextualSummary = await call(
+    "reputation_coordinator",
+    "get_contextual_reputation_summary",
+    {
+      subject_agent: agentKey,
+      domain: null
+    }
+  );
+
+  check(
+    contextualSummary.status === 200,
+    "contextual reputation summary via proxy returns 200"
+  );
+
+  const expectedDomains = [
+    "Commerce",
+    "Professional",
+    "Hospitality",
+    "Technical",
+    "Community",
+    "Reliability"
+  ];
+
+  const summaries = contextualSummary.body.result;
+
+  check(
+    Array.isArray(summaries) && summaries.length === 6,
+    "contextual summary returns all six reputation domains"
+  );
+
+  for (const domain of expectedDomains) {
+    const summary = summaries.find(item => item.domain === domain);
+
+    check(
+      Boolean(summary),
+      "contextual summary includes " + domain
+    );
+
+    check(
+      summary.review_count === 0 &&
+        summary.average_rating === 0,
+      domain + " starts with zero reviews and zero average"
+    );
+  }
+
+  const selfReview = await call(
+    "reputation_coordinator",
+    "create_contextual_review",
+    {
+      subject_agent: agentKey,
+      domain: "Commerce",
+      rating: 5,
+      comment: null,
+      evidence_attestations: []
+    }
   );
 
   check(
     selfReview.status === 500,
-    "self review is rejected via proxy"
+    "contextual self-review is rejected via proxy"
   );
 
   check(
     String(selfReview.body.error).includes("cannot review"),
-    "self review error message reaches the client"
+    "contextual self-review rejection message reaches the client"
   );
 
-  const forbidden = await call("evil_function", null);
+  const legacySelfReview = await call(
+    "identity_coordinator",
+    "create_review",
+    {
+      subject_agent: agentKey,
+      rating: 5,
+      comment: null
+    }
+  );
+
+  check(
+    legacySelfReview.status === 500,
+    "legacy self-review is still rejected via proxy"
+  );
+
+  check(
+    String(legacySelfReview.body.error).includes("cannot review"),
+    "legacy self-review rejection message reaches the client"
+  );
+
+  const forbidden = await call(
+    "identity_coordinator",
+    "evil_function",
+    null
+  );
 
   check(
     forbidden.status === 403,
