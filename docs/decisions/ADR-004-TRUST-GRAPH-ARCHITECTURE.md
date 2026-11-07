@@ -8,32 +8,35 @@ ADR-004: Trust Graph Architecture
 
 HoloTrust is evolving from decentralized identity, verifiable attestations, and contextual reputation into a broader agent-centric trust network.
 
-The Trust Graph must represent relationships between agents without relying on a centralized identity provider or a single global reputation score.
+The Trust Graph represents explicit relationships between agents without relying on a centralized identity provider or a universal trust score.
 
-The architecture must preserve user autonomy, verifiable evidence, contextual meaning, and compatibility with Holochain’s agent-centric model.
+The architecture must preserve agent autonomy, directional relationship semantics, contextual meaning, privacy, and compatibility with Holochain.
 
 2. Decision
 
 Implement Trust Graph as a dedicated domain with separate integrity and coordinator zomes.
 
-The Trust Graph will build on existing identity, attestation, and reputation capabilities without merging their responsibilities.
+The Trust Graph will build on the existing identity, attestation, and reputation capabilities without merging their responsibilities.
+
+Version 0.1 will represent explicit trust declarations only. It will not introduce evidence fields, numerical trust scores, automatic reciprocal relationships, or transitive trust calculations.
 
 3. Core Principles
 
 1. Agent-centric ownership and control.
 2. No centralized trust authority.
-3. Context-dependent trust relationships.
-4. Verifiable evidence wherever applicable.
+3. Directional relationships.
+4. Context-dependent trust declarations.
 5. Immutable historical records.
-6. Explicit consent and transparent relationship rules.
-7. Privacy by design.
-8. Backward compatibility with existing HoloTrust modules.
+6. Privacy by design.
+7. Explicit authorization for relationship removal.
+8. Backward compatibility with existing modules.
+9. Eventual consistency must be reflected honestly in query behavior.
 
 4. Directional Trust Model
 
 Trust relationships are directional.
 
-An agent may express trust toward another agent without implying that the other agent trusts them in return.
+An agent may express a trust relationship toward another agent without implying that the other agent trusts them in return.
 
 The system must distinguish:
 
@@ -42,77 +45,115 @@ The system must distinguish:
 * Mutual trust.
 * No established relationship.
 
-Mutual trust must never be inferred from a one-way relationship.
+Mutual trust is determined only when both agents have independently created active relationships toward one another in the same context.
+
+A one-way relationship must never be interpreted as mutual.
 
 5. Contextual Trust
 
-Trust must be associated with a defined context.
+Version 0.1 supports these stable context identifiers:
 
-Initial context categories:
+* general
+* commerce
+* professional
+* hospitality
+* technical
+* community
+* reliability
 
-* Commerce
-* Professional
-* Hospitality
-* Technical
-* Community
-* Reliability
+Unknown contexts must be rejected.
 
-The architecture must allow additional contexts without requiring a breaking schema migration.
+Context identifiers are protocol values and must remain stable. Display labels may be localized.
 
-A trust relationship in one context must not automatically imply trust in another context.
+A relationship in one context must not automatically imply a relationship in another context.
 
-6. Relationship Lifecycle
+6. Relationship Data Model
 
-Trust relationships must support:
+The initial conceptual relationship structure is:
+
+pub struct TrustRelationship {
+    pub schema_version: u8,
+    pub subject_agent: AgentPubKey,
+    pub context: TrustContext,
+}
+
+The relationship author must be derived from the authenticated Holochain action author.
+
+The author must not be accepted as a user-controlled input field.
+
+The relationship target is represented by subject_agent.
+
+An agent must not create a relationship with itself.
+
+Version 0.1 must not include:
+
+* A numerical trust score.
+* A universal trust ranking.
+* An automatic reciprocal relationship.
+* An automatic transitive trust calculation.
+* Sensitive personal information.
+* Attestation or reputation evidence fields.
+
+7. Relationship Lifecycle
+
+The system must support:
 
 * Creation.
 * Retrieval.
 * Contextual querying.
-* Removal or revocation.
+* Removal.
 * Historical inspection.
 
-Existing relationship records must not be silently overwritten.
+Removing a relationship must create a separate immutable removal record.
 
-Removal must preserve the historical record and create an auditable lifecycle event.
+Only the original relationship author may remove that relationship.
 
-7. Evidence and Validation
+The original relationship entry must never be edited or deleted.
 
-Where a trust relationship references evidence:
+A removed relationship must not be presented as active.
 
-* The referenced evidence must exist.
-* The evidence must belong to the relevant subject.
-* The evidence must be of an allowed type.
-* Invalid or unrelated references must be rejected.
-* Evidence status must be resolved through the existing attestation capabilities.
-
-Historical records must remain inspectable even if referenced evidence later expires, is revoked, or is superseded.
-
-The architecture must distinguish historical validity from current evidence status.
+Creating a new relationship after removal creates a new historical declaration.
 
 8. Module Boundaries
 
 The implementation will use:
 
-* trust_integrity: entry definitions, validation rules, links, and integrity constraints.
-* trust: coordinator functions, relationship lifecycle, queries, and cross-zome integration.
+* trust_integrity: entry definitions, validation rules, link types, and integrity constraints.
+* trust: coordinator functions, relationship lifecycle, and queries.
 
-The Trust Graph must reuse existing Identity, Attestation, and Reputation capabilities through defined interfaces.
+The Trust Graph will reuse existing Identity capabilities for agent identity and discovery.
 
-It must not duplicate their core data models unnecessarily.
+Attestation remains responsible for verifiable claims and their historical status.
+
+Reputation remains responsible for contextual evaluation of evidence.
+
+Trust Graph records explicit agent-declared relationships only.
+
+Version 0.1 must not modify Attestation or Reputation records and must not duplicate their data models.
+
+Future evidence-aware integrations may be considered through a separate architectural decision.
 
 9. Query Capabilities
 
 The initial API should support:
 
-* Get relationships created by an agent.
-* Get relationships received by an agent.
-* Query relationships by context.
-* Check whether a directional relationship exists.
-* Identify mutual relationships.
-* Inspect relationship history.
-* Retrieve relationship evidence references.
+* create_trust_relationship
+* remove_trust_relationship
+* get_trust_relationship
+* get_trust_relationships_by_author
+* get_trust_relationships_for_subject
+* get_trust_relationships_by_context
+* get_trust_relationship_history
 
-Queries must respect agent authorization and privacy boundaries.
+Queries must distinguish active relationships from removed relationships.
+
+The system must support checking directional and mutual relationships.
+
+Discovery links must be validated by the integrity zome.
+
+Historical records must remain retrievable even if discovery links are removed.
+
+Results reflect records available to the querying agent at query time. The API must not claim globally instantaneous DHT consistency.
 
 10. Security and Privacy
 
@@ -121,39 +162,54 @@ The implementation must:
 * Validate all externally supplied input.
 * Enforce ownership and authorization rules.
 * Prevent unauthorized relationship modification.
+* Reject self-directed relationships.
+* Reject duplicate active relationships.
+* Reject duplicate removal records.
 * Avoid exposing private information through public queries.
-* Reject malformed or excessive evidence references.
-* Avoid treating trust relationships as proof of legal identity.
-* Avoid presenting contextual trust as a universal guarantee.
+* Avoid storing sensitive personal information in public DHT entries.
+* Avoid treating a trust relationship as proof of legal identity or objective trustworthiness.
 
 11. Frontend Integration
 
 The Trust Graph must eventually provide frontend capabilities for:
 
-* Viewing an agent’s trust relationships.
-* Exploring contextual relationships.
-* Inspecting mutual relationships.
-* Viewing evidence references.
-* Understanding relationship history.
-* Managing relationships under the applicable authorization rules.
+* Finding another agent.
+* Creating a contextual trust relationship.
+* Viewing outgoing relationships.
+* Viewing incoming relationships.
+* Identifying mutual relationships.
+* Removing relationships created by the current agent.
+* Inspecting relationship history.
 
-Frontend implementation must use the real Holochain conductor integration rather than permanent mock data.
+The interface must clearly distinguish incoming and outgoing relationships.
+
+The frontend must use the real Holochain conductor integration rather than permanent mock data.
+
+No universal trust score may be displayed.
 
 12. Testing Requirements
 
 Tests must cover:
 
 * Relationship creation.
+* Authenticated author attribution.
 * Directional relationship semantics.
-* Context validation.
-* Invalid input rejection.
-* Unauthorized modification rejection.
-* Relationship removal and history preservation.
-* Evidence reference validation.
-* Expired, revoked, and superseded evidence.
+* Supported context acceptance.
+* Unknown context rejection.
+* Self-relationship rejection.
+* Duplicate active relationship rejection.
+* Authorized removal.
+* Unauthorized removal rejection.
+* Duplicate removal rejection.
+* Historical record preservation.
+* Active and removed relationship queries.
 * Mutual relationship queries.
-* Multi-agent interactions.
+* Multi-agent discovery.
+* Context-specific query behavior.
+* DHT consistency behavior.
 * Regression compatibility with Identity, Attestation, and Reputation.
+
+Multi-agent tests should use at least three independent agents.
 
 Static checks and focused tests must be completed before expensive multi-conductor integration tests.
 
@@ -161,27 +217,30 @@ Fast CI must pass before Full CI is started.
 
 13. Implementation Sequence
 
-1. Approve this ADR and the Trust Specification.
+1. Approve HT-TRUST-001 and this ADR.
 2. Inspect existing workspace, DNA manifests, and coordinator patterns.
 3. Implement Trust integrity types and validation.
-4. Implement Trust coordinator operations.
-5. Add focused unit and integration tests.
-6. Register Trust zomes in the DNA and workspace.
-7. Integrate Trust Graph with the frontend.
-8. Run static checks and focused tests.
-9. Run Fast CI.
-10. Run Full CI after all preliminary checks pass.
-11. Update architecture, documentation, and project continuity records.
+4. Implement relationship and removal record validation.
+5. Implement discovery links.
+6. Implement Trust coordinator operations.
+7. Add focused integrity and coordinator tests.
+8. Register Trust zomes in Cargo workspace and DNA manifest.
+9. Add multi-agent integration tests.
+10. Integrate Trust Graph into the frontend.
+11. Run static checks and focused tests.
+12. Run Fast CI.
+13. Run Full CI only after preliminary checks pass.
+14. Update architecture, roadmap, and project continuity documentation.
 
 14. Consequences
 
 Positive consequences:
 
 * A dedicated and extensible Trust Graph domain.
-* Clear separation between identity, reputation, and trust.
+* Clear separation between identity, reputation, attestation, and trust.
 * Directional and contextual relationship semantics.
-* Better auditability and evidence integration.
-* A foundation for future economic and agent-to-agent interactions.
+* Immutable and auditable relationship history.
+* A foundation for future agent-to-agent and economic interactions.
 
 Trade-offs:
 
@@ -197,8 +256,9 @@ This ADR is considered implemented when:
 
 * Trust integrity and coordinator zomes exist.
 * Directional and contextual relationship rules are enforced.
-* Lifecycle and history behavior are tested.
-* Evidence integration works with existing Attestation capabilities.
+* Relationship lifecycle and history behavior are tested.
+* Authorization rules are enforced by integrity validation.
 * DNA and workspace registration are complete.
+* Frontend relationship discovery and management work.
 * Required CI workflows pass.
 * Documentation accurately reflects the implemented architecture.
